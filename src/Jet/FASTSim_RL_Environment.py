@@ -439,7 +439,6 @@ class FASTSimEnvironment(gym.Env):
         self.cycTransKwOutReq = [0]*len(self.cycSecs)
         self.cycMet = [0]*len(self.cycSecs)
         self.transKwOutAch = [0]*len(self.cycSecs)
-        self.transKwInAch = [0]*len(self.cycSecs)
         self.curSocTarget = [0]*len(self.cycSecs)
         self.minMcKw2HelpFc = [0]*len(self.cycSecs)
         self.mcMechKwOutAch = [0]*len(self.cycSecs)
@@ -456,7 +455,6 @@ class FASTSimEnvironment(gym.Env):
         self.fsKwOutAch = [0]*len(self.cycSecs)
         self.fsKwhOutAch = [0]*len(self.cycSecs)
         self.essCurKwh = [0]*len(self.cycSecs)
-        self.soc = [0]*len(self.cycSecs)
 
         # Vehicle Attributes, Control Variables
         self.regenBufferSoc = [0]*len(self.cycSecs)
@@ -486,7 +484,6 @@ class FASTSimEnvironment(gym.Env):
         self.prevfcTimeOn = [0]*len(self.cycSecs)
 
         ### Additional Variables
-        self.mpsAch = [0]*len(self.cycSecs)
         self.mphAch = [0]*len(self.cycSecs)
         self.distMeters = [0]*len(self.cycSecs)
         self.distMiles = [0]*len(self.cycSecs)
@@ -537,551 +534,549 @@ class FASTSimEnvironment(gym.Env):
 
 
     def step(self, action):
-        for i in range(1, len(self.cycSecs)):
+        ### Misc calcs
+        if self.veh['noElecAux']=='TRUE':
+            self.auxInKw = self.veh['auxKw']/self.veh['altEff']
+        else:
+            self.auxInKw = self.veh['auxKw']
 
-            ### Misc calcs
-            if veh['noElecAux']=='TRUE':
-                auxInKw[i] = veh['auxKw']/veh['altEff']
+        if self.soc<(self.veh['minSoc']+self.veh['percHighAccBuf']):
+            self.reachedBuff = 0
+        else:
+            self.reachedBuff = 1
+        if self.soc<self.veh['minSoc'] or (self.highAccFcOnTag==1 and self.reachedBuff==0):
+            self.highAccFcOnTag = 1
+        else:
+            self.highAccFcOnTag = 0
+        self.maxTracMps = self.mpsAch+(self.maxTracMps2*self.secs)
+
+        ### Component Limits
+        self.curMaxFsKwOut = min( self.veh['maxFuelStorKw'] , self.fsKwOutAch + ((self.veh['maxFuelStorKw']/self.veh['fuelStorSecsToPeakPwr'])*(self.secs)))
+        self.fcTransLimKw = self.fcKwOutAch + ((veh['maxFuelConvKw']/veh['fuelConvSecsToPeakPwr'])*(secs[i]))
+
+        fcMaxKwIn[i] = min(curMaxFsKwOut[i], veh['maxFuelStorKw'])
+        fcFsLimKw[i] = veh['fcMaxOutkW']
+        curMaxFcKwOut[i] = min(veh['maxFuelConvKw'],fcFsLimKw[i],fcTransLimKw[i])
+
+        if veh['maxEssKwh']==0 or soc[i-1]<veh['minSoc']:
+            essCapLimDischgKw[i] = 0.0
+
+        else:
+            essCapLimDischgKw[i] = (veh['maxEssKwh']*np.sqrt(veh['essRoundTripEff']))*3600.0*(soc[i-1]-veh['minSoc'])/(secs[i])
+        curMaxEssKwOut[i] = min(veh['maxEssKw'],essCapLimDischgKw[i])
+
+        if  veh['maxEssKwh'] == 0 or veh['maxEssKw'] == 0:
+            essCapLimChgKw[i] = 0
+
+        else:
+            essCapLimChgKw[i] = max(((veh['maxSoc']-soc[i-1])*veh['maxEssKwh']*(1/np.sqrt(veh['essRoundTripEff'])))/((secs[i])*(1/3600.0)),0)
+
+        curMaxEssChgKw[i] = min(essCapLimChgKw[i],veh['maxEssKw'])
+
+        if veh['fcEffType']==4:
+            curMaxElecKw[i] = curMaxFcKwOut[i]+curMaxRoadwayChgKw[i]+curMaxEssKwOut[i]-auxInKw[i]
+
+        else:
+            curMaxElecKw[i] = curMaxRoadwayChgKw[i]+curMaxEssKwOut[i]-auxInKw[i]
+
+        curMaxAvailElecKw[i] = min(curMaxElecKw[i], veh['mcMaxElecInKw'])
+
+        if curMaxElecKw[i]>0:
+            if curMaxAvailElecKw[i] == max(veh['mcKwInArray']):
+                mcElecInLimKw[i] = min(veh['mcKwOutArray'][len(veh['mcKwOutArray'])-1],veh['maxMotorKw'])
             else:
-                auxInKw[i] = veh['auxKw']
+                mcElecInLimKw[i] = min(veh['mcKwOutArray'][np.argmax(veh['mcKwInArray']>min(max(veh['mcKwInArray'])-0.01,curMaxAvailElecKw[i]))-1],veh['maxMotorKw'])
+        else:
+            mcElecInLimKw[i] = 0.0
 
-            if soc[i-1]<(veh['minSoc']+veh['percHighAccBuf']):
-                reachedBuff[i] = 0
+        mcTransiLimKw[i] = abs(mcMechKwOutAch[i-1])+((veh['maxMotorKw']/veh['motorSecsToPeakPwr'])*(secs[i]))
+        curMaxMcKwOut[i] = max(min(mcElecInLimKw[i],mcTransiLimKw[i],veh['maxMotorKw']),-veh['maxMotorKw'])
+
+        if curMaxMcKwOut[i] == 0:
+            curMaxMcElecKwIn[i] = 0
+        else:
+            if curMaxMcKwOut[i] == veh['maxMotorKw']:
+                curMaxMcElecKwIn[i] = curMaxMcKwOut[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
             else:
-                reachedBuff[i] = 1
-            if soc[i-1]<veh['minSoc'] or (highAccFcOnTag[i-1]==1 and reachedBuff[i]==0):
-                highAccFcOnTag[i] = 1
+                curMaxMcElecKwIn[i] = curMaxMcKwOut[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,curMaxMcKwOut[i]))-1)]
+
+        if veh['maxMotorKw']==0:
+            essLimMcRegenPercKw[i] = 0.0
+
+        else:
+            essLimMcRegenPercKw[i] = min((curMaxEssChgKw[i]+auxInKw[i])/veh['maxMotorKw'],1)
+        if curMaxEssChgKw[i]==0:
+            essLimMcRegenKw[i] = 0.0
+
+        else:
+            if veh['maxMotorKw'] == curMaxEssChgKw[i]-curMaxRoadwayChgKw[i]:
+                essLimMcRegenKw[i] = min(veh['maxMotorKw'],curMaxEssChgKw[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1])
             else:
-                highAccFcOnTag[i] = 0
-            maxTracMps[i] = mpsAch[i-1]+(maxTracMps2*secs[i])
+                essLimMcRegenKw[i] = min(veh['maxMotorKw'],curMaxEssChgKw[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,curMaxEssChgKw[i]-curMaxRoadwayChgKw[i]))-1)])
 
-            ### Component Limits
-            curMaxFsKwOut[i] = min( veh['maxFuelStorKw'] , fsKwOutAch[i-1] + ((veh['maxFuelStorKw']/veh['fuelStorSecsToPeakPwr'])*(secs[i])))
-            fcTransLimKw[i] = fcKwOutAch[i-1] + ((veh['maxFuelConvKw']/veh['fuelConvSecsToPeakPwr'])*(secs[i]))
+        curMaxMechMcKwIn[i] = min(essLimMcRegenKw[i],veh['maxMotorKw'])
+        curMaxTracKw[i] = (((veh['wheelCoefOfFric']*veh['driveAxleWeightFrac']*veh['vehKg']*gravityMPerSec2)/(1+((veh['vehCgM']*veh['wheelCoefOfFric'])/veh['wheelBaseM'])))/1000.0)*(maxTracMps[i])
 
-            fcMaxKwIn[i] = min(curMaxFsKwOut[i], veh['maxFuelStorKw'])
-            fcFsLimKw[i] = veh['fcMaxOutkW']
-            curMaxFcKwOut[i] = min(veh['maxFuelConvKw'],fcFsLimKw[i],fcTransLimKw[i])
+        if veh['fcEffType']==4:
 
-            if veh['maxEssKwh']==0 or soc[i-1]<veh['minSoc']:
-                essCapLimDischgKw[i] = 0.0
+            if veh['noElecSys']=='TRUE' or veh['noElecAux']=='TRUE' or highAccFcOnTag[i]==1:
+                curMaxTransKwOut[i] = min((curMaxMcKwOut[i]-auxInKw[i])*veh['transEff'],curMaxTracKw[i]/veh['transEff'])
+                debug_flag[i] = 1
 
             else:
-                essCapLimDischgKw[i] = (veh['maxEssKwh']*np.sqrt(veh['essRoundTripEff']))*3600.0*(soc[i-1]-veh['minSoc'])/(secs[i])
-            curMaxEssKwOut[i] = min(veh['maxEssKw'],essCapLimDischgKw[i])
+                curMaxTransKwOut[i] = min((curMaxMcKwOut[i]-min(curMaxElecKw[i],0))*veh['transEff'],curMaxTracKw[i]/veh['transEff'])
+                debug_flag[i] = 2
 
-            if  veh['maxEssKwh'] == 0 or veh['maxEssKw'] == 0:
-                essCapLimChgKw[i] = 0
+        else:
+
+            if veh['noElecSys']=='TRUE' or veh['noElecAux']=='TRUE' or highAccFcOnTag[i]==1:
+                curMaxTransKwOut[i] = min((curMaxMcKwOut[i]+curMaxFcKwOut[i]-auxInKw[i])*veh['transEff'],curMaxTracKw[i]/veh['transEff'])
+                debug_flag[i] = 3
 
             else:
-                essCapLimChgKw[i] = max(((veh['maxSoc']-soc[i-1])*veh['maxEssKwh']*(1/np.sqrt(veh['essRoundTripEff'])))/((secs[i])*(1/3600.0)),0)
+                curMaxTransKwOut[i] = min((curMaxMcKwOut[i]+curMaxFcKwOut[i]-min(curMaxElecKw[i],0))*veh['transEff'],curMaxTracKw[i]/veh['transEff'])
+                debug_flag[i] = 4
 
-            curMaxEssChgKw[i] = min(essCapLimChgKw[i],veh['maxEssKw'])
+        ### Cycle Power
+        cycDragKw[i] = 0.5*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*(((mpsAch[i-1]+cycMps[i])/2.0)**3)/1000.0
+        cycAccelKw[i] = (veh['vehKg']/(2.0*(secs[i])))*((cycMps[i]**2)-(mpsAch[i-1]**2))/1000.0
+        cycAscentKw[i] = gravityMPerSec2*np.sin(np.arctan(cycGrade[i]))*veh['vehKg']*((mpsAch[i-1]+cycMps[i])/2.0)/1000.0
+        cycTracKwReq[i] = cycDragKw[i] + cycAccelKw[i] + cycAscentKw[i]
+        spareTracKw[i] = curMaxTracKw[i]-cycTracKwReq[i]
+        cycRrKw[i] = gravityMPerSec2*veh['wheelRrCoef']*veh['vehKg']*((mpsAch[i-1]+cycMps[i])/2.0)/1000.0
+        cycWheelRadPerSec[i] = cycMps[i]/veh['wheelRadiusM']
+        cycTireInertiaKw[i] = (((0.5)*veh['wheelInertiaKgM2']*(veh['numWheels']*(cycWheelRadPerSec[i]**2.0))/secs[i])-((0.5)*veh['wheelInertiaKgM2']*(veh['numWheels']*((mpsAch[i-1]/veh['wheelRadiusM'])**2.0))/secs[i]))/1000.0
+
+        cycWheelKwReq[i] = cycTracKwReq[i] + cycRrKw[i] + cycTireInertiaKw[i]
+        regenContrLimKwPerc[i] = veh['maxRegen']/(1+veh['regenA']*np.exp(-veh['regenB']*((cycMph[i]+mpsAch[i-1]*mphPerMps)/2.0+1-0)))
+        cycRegenBrakeKw[i] = max(min(curMaxMechMcKwIn[i]*veh['transEff'],regenContrLimKwPerc[i]*-cycWheelKwReq[i]),0)
+        cycFricBrakeKw[i] = -min(cycRegenBrakeKw[i]+cycWheelKwReq[i],0)
+        cycTransKwOutReq[i] = cycWheelKwReq[i] + cycFricBrakeKw[i]
+
+        if cycTransKwOutReq[i]<=curMaxTransKwOut[i]:
+            cycMet[i] = 1
+            transKwOutAch[i] = cycTransKwOutReq[i]
+        else:
+            cycMet[i] = -1
+            transKwOutAch[i] = curMaxTransKwOut[i]
+
+        ################################
+        ###   Speed/Distance Calcs   ###
+        ################################
+
+        #Cycle is met
+        if cycMet[i]==1:
+            mpsAch[i] = cycMps[i]
+
+        #Cycle is not met
+        else:
+            Drag3 = (1.0/16.0)*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']
+            Accel2 = veh['vehKg']/(2.0*(secs[i]))
+            Drag2 = (3.0/16.0)*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*mpsAch[i-1]
+            Wheel2 = 0.5*veh['wheelInertiaKgM2']*veh['numWheels']/(secs[i]*(veh['wheelRadiusM']**2))
+            Drag1 = (3.0/16.0)*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*((mpsAch[i-1])**2)
+            Roll1 = (gravityMPerSec2*veh['wheelRrCoef']*veh['vehKg']/2.0)
+            Ascent1 = (gravityMPerSec2*np.sin(np.arctan(cycGrade[i]))*veh['vehKg']/2.0)
+            Accel0 = -(veh['vehKg']*((mpsAch[i-1])**2))/(2.0*(secs[i]))
+            Drag0 = (1.0/16.0)*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*((mpsAch[i-1])**3)
+            Roll0 = (gravityMPerSec2*veh['wheelRrCoef']*veh['vehKg']*mpsAch[i-1]/2.0)
+            Ascent0 = (gravityMPerSec2*np.sin(np.arctan(cycGrade[i]))*veh['vehKg']*mpsAch[i-1]/2.0)
+            Wheel0 = -((0.5*veh['wheelInertiaKgM2']*veh['numWheels']*(mpsAch[i-1]**2))/(secs[i]*(veh['wheelRadiusM']**2)))
+
+            Total3 = Drag3/1e3
+            Total2 = (Accel2+Drag2+Wheel2)/1e3
+            Total1 = (Drag1+Roll1+Ascent1)/1e3
+            Total0 = (Accel0+Drag0+Roll0+Ascent0+Wheel0)/1e3 - curMaxTransKwOut[i]
+
+            Total = [Total3,Total2,Total1,Total0]
+            Total_roots = np.roots(Total)
+            ind = np.argmin( abs(cycMps[i] - Total_roots) )
+            mpsAch[i] = Total_roots[ind]
+
+        mphAch[i] = mpsAch[i]*mphPerMps
+        distMeters[i] = mpsAch[i]*secs[i]
+        distMiles[i] = distMeters[i]*(1.0/metersPerMile)
+
+        ### Drive Train
+        if transKwOutAch[i]>0:
+            transKwInAch[i] = transKwOutAch[i]/veh['transEff']
+        else:
+            transKwInAch[i] = transKwOutAch[i]*veh['transEff']
+
+        if cycMet[i]==1:
 
             if veh['fcEffType']==4:
-                curMaxElecKw[i] = curMaxFcKwOut[i]+curMaxRoadwayChgKw[i]+curMaxEssKwOut[i]-auxInKw[i]
+                minMcKw2HelpFc[i] = max(transKwInAch[i], -curMaxMechMcKwIn[i])
 
             else:
-                curMaxElecKw[i] = curMaxRoadwayChgKw[i]+curMaxEssKwOut[i]-auxInKw[i]
+                minMcKw2HelpFc[i] = max(transKwInAch[i] - curMaxFcKwOut[i], -curMaxMechMcKwIn[i])
+        else:
+            minMcKw2HelpFc[i] = max(curMaxMcKwOut[i], -curMaxMechMcKwIn[i])
 
-            curMaxAvailElecKw[i] = min(curMaxElecKw[i], veh['mcMaxElecInKw'])
+        if veh['noElecSys'] == 'TRUE':
+            regenBufferSoc[i] = 0
 
-            if curMaxElecKw[i]>0:
-                if curMaxAvailElecKw[i] == max(veh['mcKwInArray']):
-                    mcElecInLimKw[i] = min(veh['mcKwOutArray'][len(veh['mcKwOutArray'])-1],veh['maxMotorKw'])
-                else:
-                    mcElecInLimKw[i] = min(veh['mcKwOutArray'][np.argmax(veh['mcKwInArray']>min(max(veh['mcKwInArray'])-0.01,curMaxAvailElecKw[i]))-1],veh['maxMotorKw'])
+        elif veh['chargingOn']:
+            regenBufferSoc[i] = max(veh['maxSoc'] - (maxRegenKwh/veh['maxEssKwh']), (veh['maxSoc']+veh['minSoc'])/2)
+
+        else:
+            regenBufferSoc[i] = max(((veh['maxEssKwh']*veh['maxSoc'])-(0.5*veh['vehKg']*(cycMps[i]**2)*(1.0/1000)*(1.0/3600)*veh['motorPeakEff']*veh['maxRegen']))/veh['maxEssKwh'],veh['minSoc'])
+
+        essRegenBufferDischgKw[i] = min(curMaxEssKwOut[i], max(0,(soc[i-1]-regenBufferSoc[i])*veh['maxEssKwh']*3600/secs[i]))
+
+        maxEssRegenBufferChgKw[i] = min(max(0,(regenBufferSoc[i]-soc[i-1])*veh['maxEssKwh']*3600.0/secs[i]),curMaxEssChgKw[i])
+
+        if veh['noElecSys']=='TRUE':
+            accelBufferSoc[i] = 0
+
+        else:
+            accelBufferSoc[i] = min(max((((((((veh['maxAccelBufferMph']*(1/mphPerMps))**2))-((cycMps[i]**2)))/(((veh['maxAccelBufferMph']*(1/mphPerMps))**2)))*(min(veh['maxAccelBufferPercOfUseableSoc']*(veh['maxSoc']-veh['minSoc']),maxRegenKwh/veh['maxEssKwh'])*veh['maxEssKwh']))/veh['maxEssKwh'])+veh['minSoc'],veh['minSoc']), veh['maxSoc'])
+
+        essAccelBufferChgKw[i] = max(0,(accelBufferSoc[i] - soc[i-1])*veh['maxEssKwh']*3600.0/secs[i])
+        maxEssAccelBufferDischgKw[i] = min(max(0, (soc[i-1]-accelBufferSoc[i])*veh['maxEssKwh']*3600/secs[i]),curMaxEssKwOut[i])
+
+        if regenBufferSoc[i] < accelBufferSoc[i]:
+            essAccelRegenDischgKw[i] = max(min(((soc[i-1]-(regenBufferSoc[i]+accelBufferSoc[i])/2)*veh['maxEssKwh']*3600.0)/secs[i],curMaxEssKwOut[i]),-curMaxEssChgKw[i])
+
+        elif soc[i-1]>regenBufferSoc[i]:
+            essAccelRegenDischgKw[i] = max(min(essRegenBufferDischgKw[i],curMaxEssKwOut[i]),-curMaxEssChgKw[i])
+
+        elif soc[i-1]<accelBufferSoc[i]:
+            essAccelRegenDischgKw[i] = max(min(-1.0*essAccelBufferChgKw[i],curMaxEssKwOut[i]),-curMaxEssChgKw[i])
+
+        else:
+            essAccelRegenDischgKw[i] = max(min(0,curMaxEssKwOut[i]),-curMaxEssChgKw[i])
+
+        fcKwGapFrEff[i] = abs(transKwOutAch[i]-veh['maxFcEffKw'])
+
+        if veh['noElecSys']=='TRUE':
+            mcElectInKwForMaxFcEff[i] = 0
+
+        elif transKwOutAch[i]<veh['maxFcEffKw']:
+
+            if fcKwGapFrEff[i] == veh['maxMotorKw']:
+                mcElectInKwForMaxFcEff[i] = fcKwGapFrEff[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]*-1
             else:
-                mcElecInLimKw[i] = 0.0
+                mcElectInKwForMaxFcEff[i] = fcKwGapFrEff[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,fcKwGapFrEff[i]))-1)]*-1
 
-            mcTransiLimKw[i] = abs(mcMechKwOutAch[i-1])+((veh['maxMotorKw']/veh['motorSecsToPeakPwr'])*(secs[i]))
-            curMaxMcKwOut[i] = max(min(mcElecInLimKw[i],mcTransiLimKw[i],veh['maxMotorKw']),-veh['maxMotorKw'])
+        else:
 
-            if curMaxMcKwOut[i] == 0:
-                curMaxMcElecKwIn[i] = 0
+            if fcKwGapFrEff[i] == veh['maxMotorKw']:
+                mcElectInKwForMaxFcEff[i] = veh['mcKwInArray'][len(veh['mcKwInArray'])-1]
             else:
-                if curMaxMcKwOut[i] == veh['maxMotorKw']:
-                    curMaxMcElecKwIn[i] = curMaxMcKwOut[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
-                else:
-                    curMaxMcElecKwIn[i] = curMaxMcKwOut[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,curMaxMcKwOut[i]))-1)]
+                mcElectInKwForMaxFcEff[i] = veh['mcKwInArray'][np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,fcKwGapFrEff[i]))-1]
 
-            if veh['maxMotorKw']==0:
-                essLimMcRegenPercKw[i] = 0.0
+        if veh['noElecSys']=='TRUE':
+            electKwReq4AE[i] = 0
 
+        elif transKwInAch[i] > 0:
+            if transKwInAch[i] == veh['maxMotorKw']:
+
+                electKwReq4AE[i] = transKwInAch[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]+auxInKw[i]
             else:
-                essLimMcRegenPercKw[i] = min((curMaxEssChgKw[i]+auxInKw[i])/veh['maxMotorKw'],1)
-            if curMaxEssChgKw[i]==0:
-                essLimMcRegenKw[i] = 0.0
+                electKwReq4AE[i] = transKwInAch[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,transKwInAch[i]))-1)]+auxInKw[i]
 
-            else:
-                if veh['maxMotorKw'] == curMaxEssChgKw[i]-curMaxRoadwayChgKw[i]:
-                    essLimMcRegenKw[i] = min(veh['maxMotorKw'],curMaxEssChgKw[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1])
-                else:
-                    essLimMcRegenKw[i] = min(veh['maxMotorKw'],curMaxEssChgKw[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,curMaxEssChgKw[i]-curMaxRoadwayChgKw[i]))-1)])
+        else:
+            electKwReq4AE[i] = 0
 
-            curMaxMechMcKwIn[i] = min(essLimMcRegenKw[i],veh['maxMotorKw'])
-            curMaxTracKw[i] = (((veh['wheelCoefOfFric']*veh['driveAxleWeightFrac']*veh['vehKg']*gravityMPerSec2)/(1+((veh['vehCgM']*veh['wheelCoefOfFric'])/veh['wheelBaseM'])))/1000.0)*(maxTracMps[i])
+        prevfcTimeOn[i] = fcTimeOn[i-1]
 
-            if veh['fcEffType']==4:
+        if veh['maxFuelConvKw']==0:
+            canPowerAllElectrically[i] = accelBufferSoc[i]<soc[i-1] and transKwInAch[i]<=curMaxMcKwOut[i] and (electKwReq4AE[i]<curMaxElecKw[i] or veh['maxFuelConvKw']==0)
 
-                if veh['noElecSys']=='TRUE' or veh['noElecAux']=='TRUE' or highAccFcOnTag[i]==1:
-                    curMaxTransKwOut[i] = min((curMaxMcKwOut[i]-auxInKw[i])*veh['transEff'],curMaxTracKw[i]/veh['transEff'])
-                    debug_flag[i] = 1
+        else:
+            canPowerAllElectrically[i] = accelBufferSoc[i]<soc[i-1] and transKwInAch[i]<=curMaxMcKwOut[i] and (electKwReq4AE[i]<curMaxElecKw[i] or veh['maxFuelConvKw']==0) and (cycMph[i]-0.00001<=veh['mphFcOn'] or veh['chargingOn']) and electKwReq4AE[i]<=veh['kwDemandFcOn']
 
-                else:
-                    curMaxTransKwOut[i] = min((curMaxMcKwOut[i]-min(curMaxElecKw[i],0))*veh['transEff'],curMaxTracKw[i]/veh['transEff'])
-                    debug_flag[i] = 2
+        if canPowerAllElectrically[i]:
 
-            else:
+            if transKwInAch[i]<+auxInKw[i]:
+                desiredEssKwOutForAE[i] = auxInKw[i]+transKwInAch[i]
 
-                if veh['noElecSys']=='TRUE' or veh['noElecAux']=='TRUE' or highAccFcOnTag[i]==1:
-                    curMaxTransKwOut[i] = min((curMaxMcKwOut[i]+curMaxFcKwOut[i]-auxInKw[i])*veh['transEff'],curMaxTracKw[i]/veh['transEff'])
-                    debug_flag[i] = 3
-
-                else:
-                    curMaxTransKwOut[i] = min((curMaxMcKwOut[i]+curMaxFcKwOut[i]-min(curMaxElecKw[i],0))*veh['transEff'],curMaxTracKw[i]/veh['transEff'])
-                    debug_flag[i] = 4
-
-            ### Cycle Power
-            cycDragKw[i] = 0.5*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*(((mpsAch[i-1]+cycMps[i])/2.0)**3)/1000.0
-            cycAccelKw[i] = (veh['vehKg']/(2.0*(secs[i])))*((cycMps[i]**2)-(mpsAch[i-1]**2))/1000.0
-            cycAscentKw[i] = gravityMPerSec2*np.sin(np.arctan(cycGrade[i]))*veh['vehKg']*((mpsAch[i-1]+cycMps[i])/2.0)/1000.0
-            cycTracKwReq[i] = cycDragKw[i] + cycAccelKw[i] + cycAscentKw[i]
-            spareTracKw[i] = curMaxTracKw[i]-cycTracKwReq[i]
-            cycRrKw[i] = gravityMPerSec2*veh['wheelRrCoef']*veh['vehKg']*((mpsAch[i-1]+cycMps[i])/2.0)/1000.0
-            cycWheelRadPerSec[i] = cycMps[i]/veh['wheelRadiusM']
-            cycTireInertiaKw[i] = (((0.5)*veh['wheelInertiaKgM2']*(veh['numWheels']*(cycWheelRadPerSec[i]**2.0))/secs[i])-((0.5)*veh['wheelInertiaKgM2']*(veh['numWheels']*((mpsAch[i-1]/veh['wheelRadiusM'])**2.0))/secs[i]))/1000.0
-
-            cycWheelKwReq[i] = cycTracKwReq[i] + cycRrKw[i] + cycTireInertiaKw[i]
-            regenContrLimKwPerc[i] = veh['maxRegen']/(1+veh['regenA']*np.exp(-veh['regenB']*((cycMph[i]+mpsAch[i-1]*mphPerMps)/2.0+1-0)))
-            cycRegenBrakeKw[i] = max(min(curMaxMechMcKwIn[i]*veh['transEff'],regenContrLimKwPerc[i]*-cycWheelKwReq[i]),0)
-            cycFricBrakeKw[i] = -min(cycRegenBrakeKw[i]+cycWheelKwReq[i],0)
-            cycTransKwOutReq[i] = cycWheelKwReq[i] + cycFricBrakeKw[i]
-
-            if cycTransKwOutReq[i]<=curMaxTransKwOut[i]:
-                cycMet[i] = 1
-                transKwOutAch[i] = cycTransKwOutReq[i]
-            else:
-                cycMet[i] = -1
-                transKwOutAch[i] = curMaxTransKwOut[i]
-
-            ################################
-            ###   Speed/Distance Calcs   ###
-            ################################
-
-            #Cycle is met
-            if cycMet[i]==1:
-                mpsAch[i] = cycMps[i]
-
-            #Cycle is not met
-            else:
-                Drag3 = (1.0/16.0)*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']
-                Accel2 = veh['vehKg']/(2.0*(secs[i]))
-                Drag2 = (3.0/16.0)*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*mpsAch[i-1]
-                Wheel2 = 0.5*veh['wheelInertiaKgM2']*veh['numWheels']/(secs[i]*(veh['wheelRadiusM']**2))
-                Drag1 = (3.0/16.0)*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*((mpsAch[i-1])**2)
-                Roll1 = (gravityMPerSec2*veh['wheelRrCoef']*veh['vehKg']/2.0)
-                Ascent1 = (gravityMPerSec2*np.sin(np.arctan(cycGrade[i]))*veh['vehKg']/2.0)
-                Accel0 = -(veh['vehKg']*((mpsAch[i-1])**2))/(2.0*(secs[i]))
-                Drag0 = (1.0/16.0)*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*((mpsAch[i-1])**3)
-                Roll0 = (gravityMPerSec2*veh['wheelRrCoef']*veh['vehKg']*mpsAch[i-1]/2.0)
-                Ascent0 = (gravityMPerSec2*np.sin(np.arctan(cycGrade[i]))*veh['vehKg']*mpsAch[i-1]/2.0)
-                Wheel0 = -((0.5*veh['wheelInertiaKgM2']*veh['numWheels']*(mpsAch[i-1]**2))/(secs[i]*(veh['wheelRadiusM']**2)))
-
-                Total3 = Drag3/1e3
-                Total2 = (Accel2+Drag2+Wheel2)/1e3
-                Total1 = (Drag1+Roll1+Ascent1)/1e3
-                Total0 = (Accel0+Drag0+Roll0+Ascent0+Wheel0)/1e3 - curMaxTransKwOut[i]
-
-                Total = [Total3,Total2,Total1,Total0]
-                Total_roots = np.roots(Total)
-                ind = np.argmin( abs(cycMps[i] - Total_roots) )
-                mpsAch[i] = Total_roots[ind]
-
-            mphAch[i] = mpsAch[i]*mphPerMps
-            distMeters[i] = mpsAch[i]*secs[i]
-            distMiles[i] = distMeters[i]*(1.0/metersPerMile)
-
-            ### Drive Train
-            if transKwOutAch[i]>0:
-                transKwInAch[i] = transKwOutAch[i]/veh['transEff']
-            else:
-                transKwInAch[i] = transKwOutAch[i]*veh['transEff']
-
-            if cycMet[i]==1:
-
-                if veh['fcEffType']==4:
-                    minMcKw2HelpFc[i] = max(transKwInAch[i], -curMaxMechMcKwIn[i])
-
-                else:
-                    minMcKw2HelpFc[i] = max(transKwInAch[i] - curMaxFcKwOut[i], -curMaxMechMcKwIn[i])
-            else:
-                minMcKw2HelpFc[i] = max(curMaxMcKwOut[i], -curMaxMechMcKwIn[i])
-
-            if veh['noElecSys'] == 'TRUE':
-                regenBufferSoc[i] = 0
-
-            elif veh['chargingOn']:
-                regenBufferSoc[i] = max(veh['maxSoc'] - (maxRegenKwh/veh['maxEssKwh']), (veh['maxSoc']+veh['minSoc'])/2)
-
-            else:
-                regenBufferSoc[i] = max(((veh['maxEssKwh']*veh['maxSoc'])-(0.5*veh['vehKg']*(cycMps[i]**2)*(1.0/1000)*(1.0/3600)*veh['motorPeakEff']*veh['maxRegen']))/veh['maxEssKwh'],veh['minSoc'])
-
-            essRegenBufferDischgKw[i] = min(curMaxEssKwOut[i], max(0,(soc[i-1]-regenBufferSoc[i])*veh['maxEssKwh']*3600/secs[i]))
-
-            maxEssRegenBufferChgKw[i] = min(max(0,(regenBufferSoc[i]-soc[i-1])*veh['maxEssKwh']*3600.0/secs[i]),curMaxEssChgKw[i])
-
-            if veh['noElecSys']=='TRUE':
-                accelBufferSoc[i] = 0
-
-            else:
-                accelBufferSoc[i] = min(max((((((((veh['maxAccelBufferMph']*(1/mphPerMps))**2))-((cycMps[i]**2)))/(((veh['maxAccelBufferMph']*(1/mphPerMps))**2)))*(min(veh['maxAccelBufferPercOfUseableSoc']*(veh['maxSoc']-veh['minSoc']),maxRegenKwh/veh['maxEssKwh'])*veh['maxEssKwh']))/veh['maxEssKwh'])+veh['minSoc'],veh['minSoc']), veh['maxSoc'])
-
-            essAccelBufferChgKw[i] = max(0,(accelBufferSoc[i] - soc[i-1])*veh['maxEssKwh']*3600.0/secs[i])
-            maxEssAccelBufferDischgKw[i] = min(max(0, (soc[i-1]-accelBufferSoc[i])*veh['maxEssKwh']*3600/secs[i]),curMaxEssKwOut[i])
-
-            if regenBufferSoc[i] < accelBufferSoc[i]:
-                essAccelRegenDischgKw[i] = max(min(((soc[i-1]-(regenBufferSoc[i]+accelBufferSoc[i])/2)*veh['maxEssKwh']*3600.0)/secs[i],curMaxEssKwOut[i]),-curMaxEssChgKw[i])
+            elif regenBufferSoc[i]<accelBufferSoc[i]:
+                desiredEssKwOutForAE[i] = essAccelRegenDischgKw[i]
 
             elif soc[i-1]>regenBufferSoc[i]:
-                essAccelRegenDischgKw[i] = max(min(essRegenBufferDischgKw[i],curMaxEssKwOut[i]),-curMaxEssChgKw[i])
+                desiredEssKwOutForAE[i] = essRegenBufferDischgKw[i]
 
             elif soc[i-1]<accelBufferSoc[i]:
-                essAccelRegenDischgKw[i] = max(min(-1.0*essAccelBufferChgKw[i],curMaxEssKwOut[i]),-curMaxEssChgKw[i])
+                desiredEssKwOutForAE[i] = -essAccelBufferChgKw[i]
 
             else:
-                essAccelRegenDischgKw[i] = max(min(0,curMaxEssKwOut[i]),-curMaxEssChgKw[i])
+                desiredEssKwOutForAE[i] = transKwInAch[i]+auxInKw[i]-curMaxRoadwayChgKw[i]
 
-            fcKwGapFrEff[i] = abs(transKwOutAch[i]-veh['maxFcEffKw'])
+        else:
+            desiredEssKwOutForAE[i] = 0
 
-            if veh['noElecSys']=='TRUE':
-                mcElectInKwForMaxFcEff[i] = 0
+        if canPowerAllElectrically[i]:
+            essAEKwOut[i] = max(-curMaxEssChgKw[i],-maxEssRegenBufferChgKw[i],min(0,curMaxRoadwayChgKw[i]-(transKwInAch[i]+auxInKw[i])),min(curMaxEssKwOut[i],desiredEssKwOutForAE[i]))
 
-            elif transKwOutAch[i]<veh['maxFcEffKw']:
+        else:
+            essAEKwOut[i] = 0
 
-                if fcKwGapFrEff[i] == veh['maxMotorKw']:
-                    mcElectInKwForMaxFcEff[i] = fcKwGapFrEff[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]*-1
+        erAEKwOut[i] = min(max(0,transKwInAch[i]+auxInKw[i]-essAEKwOut[i]),curMaxRoadwayChgKw[i])
+
+        if prevfcTimeOn[i]>0 and prevfcTimeOn[i]<veh['minFcTimeOn']-secs[i]:
+            fcForcedOn[i] = True
+        else:
+            fcForcedOn[i] = False
+
+#####################################  ECMS stragegy was here  ##############################################
+
+
+        if fcForcedOn[i]==False or canPowerAllElectrically[i]==False:
+            fcForcedState[i] = 1
+#             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
+#             mcMechKw4ForcedFc[i] = 0
+
+        elif transKwInAch[i]<0:
+            fcForcedState[i] = 2
+#             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
+#             mcMechKw4ForcedFc[i] = transKwInAch[i]
+
+        elif veh['maxFcEffKw']==transKwInAch[i]:
+            fcForcedState[i] = 3
+#             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
+#             mcMechKw4ForcedFc[i] = 0
+
+        elif veh['idleFcKw'] > transKwInAch[i] and cycAccelKw[i] >=0:
+            fcForcedState[i] = 4
+#             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
+#             mcMechKw4ForcedFc[i] = transKwInAch[i] - veh['idleFcKw']
+
+        elif veh['maxFcEffKw']>transKwInAch[i]:
+            fcForcedState[i] = 5
+#             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
+#             mcMechKw4ForcedFc[i] = 0
+
+        else:
+            ##################################################################################################
+            ## max ICE efficiency, the rest is filled in by EM
+            fcForcedState[i] = 6
+#             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
+#             mcMechKw4ForcedFc[i] = transKwInAch[i] - veh['maxFcEffKw']
+
+        if (-mcElectInKwForMaxFcEff[i]-curMaxRoadwayChgKw[i])>0:
+            essDesiredKw4FcEff[i] = (-mcElectInKwForMaxFcEff[i]-curMaxRoadwayChgKw[i]) * veh['essDischgToFcMaxEffPerc']
+
+        else:
+            essDesiredKw4FcEff[i] = (-mcElectInKwForMaxFcEff[i]-curMaxRoadwayChgKw[i]) * veh['essChgToFcMaxEffPerc']
+
+        if accelBufferSoc[i]>regenBufferSoc[i]:
+            essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], essAccelRegenDischgKw[i]))
+
+        elif essRegenBufferDischgKw[i]>0:
+            essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], min(essAccelRegenDischgKw[i],mcElecInLimKw[i]+auxInKw[i], max(essRegenBufferDischgKw[i],essDesiredKw4FcEff[i]))))
+
+        elif essAccelBufferChgKw[i]>0:
+            essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], max(-1*maxEssRegenBufferChgKw[i], min(-essAccelBufferChgKw[i],essDesiredKw4FcEff[i]))))
+
+
+        elif essDesiredKw4FcEff[i]>0:
+            essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], min(essDesiredKw4FcEff[i],maxEssAccelBufferDischgKw[i])))
+
+        else:
+            essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], max(essDesiredKw4FcEff[i],-maxEssRegenBufferChgKw[i])))
+
+        erKwIfFcIsReq[i] = max(0,min(curMaxRoadwayChgKw[i],curMaxMechMcKwIn[i],essKwIfFcIsReq[i]-mcElecInLimKw[i]+auxInKw[i]))
+
+        mcElecKwInIfFcIsReq[i] = essKwIfFcIsReq[i]+erKwIfFcIsReq[i]-auxInKw[i]
+
+        if veh['noElecSys']=='TRUE':
+            mcKwIfFcIsReq[i] = 0
+
+        elif  mcElecKwInIfFcIsReq[i] == 0:
+            mcKwIfFcIsReq[i] = 0
+
+        elif mcElecKwInIfFcIsReq[i] > 0:
+
+            if mcElecKwInIfFcIsReq[i] == max(veh['mcKwInArray']):
+                 mcKwIfFcIsReq[i] = mcElecKwInIfFcIsReq[i]*veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
+            else:
+                 mcKwIfFcIsReq[i] = mcElecKwInIfFcIsReq[i]*veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwInArray']>min(max(veh['mcKwInArray'])-0.01,mcElecKwInIfFcIsReq[i]))-1)]
+
+        else:
+            if mcElecKwInIfFcIsReq[i]*-1 == max(veh['mcKwInArray']):
+                mcKwIfFcIsReq[i] = mcElecKwInIfFcIsReq[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
+            else:
+                mcKwIfFcIsReq[i] = mcElecKwInIfFcIsReq[i]/(veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwInArray']>min(max(veh['mcKwInArray'])-0.01,mcElecKwInIfFcIsReq[i]*-1))-1)])
+
+        if veh['maxMotorKw']==0:
+            mcMechKwOutAch[i] = 0
+
+        elif fcForcedOn[i]==True and canPowerAllElectrically[i]==True and (veh['vehPtType']==2.0 or veh['vehPtType']==3.0) and veh['fcEffType']!=4:
+            mcMechKwOutAch[i] =  mcMechKw4ForcedFc[i]
+
+        elif transKwInAch[i]<=0:
+            if veh['fcEffType']!=4 and veh['maxFuelConvKw']> 0:
+                if canPowerAllElectrically[i] == 1:
+                    mcMechKwOutAch[i] = -min(curMaxMechMcKwIn[i],-transKwInAch[i])
                 else:
-                    mcElectInKwForMaxFcEff[i] = fcKwGapFrEff[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,fcKwGapFrEff[i]))-1)]*-1
-
+                    mcMechKwOutAch[i] = min(-min(curMaxMechMcKwIn[i], -transKwInAch[i]),max(-curMaxFcKwOut[i], mcKwIfFcIsReq[i]))
             else:
+                mcMechKwOutAch[i] = min(-min(curMaxMechMcKwIn[i],-transKwInAch[i]),-transKwInAch[i])
 
-                if fcKwGapFrEff[i] == veh['maxMotorKw']:
-                    mcElectInKwForMaxFcEff[i] = veh['mcKwInArray'][len(veh['mcKwInArray'])-1]
-                else:
-                    mcElectInKwForMaxFcEff[i] = veh['mcKwInArray'][np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,fcKwGapFrEff[i]))-1]
+        elif canPowerAllElectrically[i] == 1:
+            mcMechKwOutAch[i] = transKwInAch[i]
 
-            if veh['noElecSys']=='TRUE':
-                electKwReq4AE[i] = 0
+        else:
+            ################################################################################################
+            ################################################################################################
+            ################################################################################################
+            #
+            mcMechKwOutAch[i] = mcMechKw4ForcedFc[i]
+#             mcMechKwOutAch[i] = max(minMcKw2HelpFc[i],mcKwIfFcIsReq[i])
 
-            elif transKwInAch[i] > 0:
-                if transKwInAch[i] == veh['maxMotorKw']:
+        if mcMechKwOutAch[i]==0:
+            mcElecKwInAch[i] = 0.0
+            motor_index_debug[i] = 0
 
-                    electKwReq4AE[i] = transKwInAch[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]+auxInKw[i]
-                else:
-                    electKwReq4AE[i] = transKwInAch[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,transKwInAch[i]))-1)]+auxInKw[i]
+        elif mcMechKwOutAch[i]<0:
 
+            if mcMechKwOutAch[i]*-1 == max(veh['mcKwInArray']):
+                mcElecKwInAch[i] = mcMechKwOutAch[i]*veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
             else:
-                electKwReq4AE[i] = 0
+                mcElecKwInAch[i] = mcMechKwOutAch[i]*veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwInArray']>min(max(veh['mcKwInArray'])-0.01,mcMechKwOutAch[i]*-1))-1)]
 
-            prevfcTimeOn[i] = fcTimeOn[i-1]
-
-            if veh['maxFuelConvKw']==0:
-                canPowerAllElectrically[i] = accelBufferSoc[i]<soc[i-1] and transKwInAch[i]<=curMaxMcKwOut[i] and (electKwReq4AE[i]<curMaxElecKw[i] or veh['maxFuelConvKw']==0)
-
+        else:
+            if veh['maxMotorKw'] == mcMechKwOutAch[i]:
+                mcElecKwInAch[i] = mcMechKwOutAch[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
             else:
-                canPowerAllElectrically[i] = accelBufferSoc[i]<soc[i-1] and transKwInAch[i]<=curMaxMcKwOut[i] and (electKwReq4AE[i]<curMaxElecKw[i] or veh['maxFuelConvKw']==0) and (cycMph[i]-0.00001<=veh['mphFcOn'] or veh['chargingOn']) and electKwReq4AE[i]<=veh['kwDemandFcOn']
+                mcElecKwInAch[i] = mcMechKwOutAch[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,mcMechKwOutAch[i]))-1)]
 
-            if canPowerAllElectrically[i]:
+        if curMaxRoadwayChgKw[i] == 0:
+            roadwayChgKwOutAch[i] = 0
 
-                if transKwInAch[i]<+auxInKw[i]:
-                    desiredEssKwOutForAE[i] = auxInKw[i]+transKwInAch[i]
+        elif veh['fcEffType']==4:
+            roadwayChgKwOutAch[i] = max(0, mcElecKwInAch[i], maxEssRegenBufferChgKw[i], essRegenBufferDischgKw[i], curMaxRoadwayChgKw[i])
 
-                elif regenBufferSoc[i]<accelBufferSoc[i]:
-                    desiredEssKwOutForAE[i] = essAccelRegenDischgKw[i]
+        elif canPowerAllElectrically[i] == 1:
+            roadwayChgKwOutAch[i] = erAEKwOut[i]
 
-                elif soc[i-1]>regenBufferSoc[i]:
-                    desiredEssKwOutForAE[i] = essRegenBufferDischgKw[i]
+        else:
+            roadwayChgKwOutAch[i] = erKwIfFcIsReq[i]
 
-                elif soc[i-1]<accelBufferSoc[i]:
-                    desiredEssKwOutForAE[i] = -essAccelBufferChgKw[i]
+        minEssKw2HelpFc[i] = mcElecKwInAch[i] + auxInKw[i] - curMaxFcKwOut[i] - roadwayChgKwOutAch[i]
 
-                else:
-                    desiredEssKwOutForAE[i] = transKwInAch[i]+auxInKw[i]-curMaxRoadwayChgKw[i]
+        if veh['maxEssKw'] == 0 or veh['maxEssKwh'] == 0:
+            essKwOutAch[i]  = 0
 
-            else:
-                desiredEssKwOutForAE[i] = 0
+        elif veh['fcEffType']==4:
 
-            if canPowerAllElectrically[i]:
-                essAEKwOut[i] = max(-curMaxEssChgKw[i],-maxEssRegenBufferChgKw[i],min(0,curMaxRoadwayChgKw[i]-(transKwInAch[i]+auxInKw[i])),min(curMaxEssKwOut[i],desiredEssKwOutForAE[i]))
-
-            else:
-                essAEKwOut[i] = 0
-
-            erAEKwOut[i] = min(max(0,transKwInAch[i]+auxInKw[i]-essAEKwOut[i]),curMaxRoadwayChgKw[i])
-
-            if prevfcTimeOn[i]>0 and prevfcTimeOn[i]<veh['minFcTimeOn']-secs[i]:
-                fcForcedOn[i] = True
-            else:
-                fcForcedOn[i] = False
-
-    #####################################  ECMS stragegy was here  ##############################################
-
-
-            if fcForcedOn[i]==False or canPowerAllElectrically[i]==False:
-                fcForcedState[i] = 1
-    #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
-    #             mcMechKw4ForcedFc[i] = 0
-
-            elif transKwInAch[i]<0:
-                fcForcedState[i] = 2
-    #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
-    #             mcMechKw4ForcedFc[i] = transKwInAch[i]
-
-            elif veh['maxFcEffKw']==transKwInAch[i]:
-                fcForcedState[i] = 3
-    #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
-    #             mcMechKw4ForcedFc[i] = 0
-
-            elif veh['idleFcKw'] > transKwInAch[i] and cycAccelKw[i] >=0:
-                fcForcedState[i] = 4
-    #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
-    #             mcMechKw4ForcedFc[i] = transKwInAch[i] - veh['idleFcKw']
-
-            elif veh['maxFcEffKw']>transKwInAch[i]:
-                fcForcedState[i] = 5
-    #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
-    #             mcMechKw4ForcedFc[i] = 0
-
-            else:
-                ##################################################################################################
-                ## max ICE efficiency, the rest is filled in by EM
-                fcForcedState[i] = 6
-    #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
-    #             mcMechKw4ForcedFc[i] = transKwInAch[i] - veh['maxFcEffKw']
-
-            if (-mcElectInKwForMaxFcEff[i]-curMaxRoadwayChgKw[i])>0:
-                essDesiredKw4FcEff[i] = (-mcElectInKwForMaxFcEff[i]-curMaxRoadwayChgKw[i]) * veh['essDischgToFcMaxEffPerc']
-
-            else:
-                essDesiredKw4FcEff[i] = (-mcElectInKwForMaxFcEff[i]-curMaxRoadwayChgKw[i]) * veh['essChgToFcMaxEffPerc']
-
-            if accelBufferSoc[i]>regenBufferSoc[i]:
-                essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], essAccelRegenDischgKw[i]))
-
-            elif essRegenBufferDischgKw[i]>0:
-                essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], min(essAccelRegenDischgKw[i],mcElecInLimKw[i]+auxInKw[i], max(essRegenBufferDischgKw[i],essDesiredKw4FcEff[i]))))
-
-            elif essAccelBufferChgKw[i]>0:
-                essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], max(-1*maxEssRegenBufferChgKw[i], min(-essAccelBufferChgKw[i],essDesiredKw4FcEff[i]))))
-
-
-            elif essDesiredKw4FcEff[i]>0:
-                essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], min(essDesiredKw4FcEff[i],maxEssAccelBufferDischgKw[i])))
-
-            else:
-                essKwIfFcIsReq[i] = min(curMaxEssKwOut[i],veh['mcMaxElecInKw']+auxInKw[i],curMaxMcElecKwIn[i]+auxInKw[i], max(-curMaxEssChgKw[i], max(essDesiredKw4FcEff[i],-maxEssRegenBufferChgKw[i])))
-
-            erKwIfFcIsReq[i] = max(0,min(curMaxRoadwayChgKw[i],curMaxMechMcKwIn[i],essKwIfFcIsReq[i]-mcElecInLimKw[i]+auxInKw[i]))
-
-            mcElecKwInIfFcIsReq[i] = essKwIfFcIsReq[i]+erKwIfFcIsReq[i]-auxInKw[i]
-
-            if veh['noElecSys']=='TRUE':
-                mcKwIfFcIsReq[i] = 0
-
-            elif  mcElecKwInIfFcIsReq[i] == 0:
-                mcKwIfFcIsReq[i] = 0
-
-            elif mcElecKwInIfFcIsReq[i] > 0:
-
-                if mcElecKwInIfFcIsReq[i] == max(veh['mcKwInArray']):
-                     mcKwIfFcIsReq[i] = mcElecKwInIfFcIsReq[i]*veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
-                else:
-                     mcKwIfFcIsReq[i] = mcElecKwInIfFcIsReq[i]*veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwInArray']>min(max(veh['mcKwInArray'])-0.01,mcElecKwInIfFcIsReq[i]))-1)]
-
-            else:
-                if mcElecKwInIfFcIsReq[i]*-1 == max(veh['mcKwInArray']):
-                    mcKwIfFcIsReq[i] = mcElecKwInIfFcIsReq[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
-                else:
-                    mcKwIfFcIsReq[i] = mcElecKwInIfFcIsReq[i]/(veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwInArray']>min(max(veh['mcKwInArray'])-0.01,mcElecKwInIfFcIsReq[i]*-1))-1)])
-
-            if veh['maxMotorKw']==0:
-                mcMechKwOutAch[i] = 0
-
-            elif fcForcedOn[i]==True and canPowerAllElectrically[i]==True and (veh['vehPtType']==2.0 or veh['vehPtType']==3.0) and veh['fcEffType']!=4:
-                mcMechKwOutAch[i] =  mcMechKw4ForcedFc[i]
-
-            elif transKwInAch[i]<=0:
-                if veh['fcEffType']!=4 and veh['maxFuelConvKw']> 0:
-                    if canPowerAllElectrically[i] == 1:
-                        mcMechKwOutAch[i] = -min(curMaxMechMcKwIn[i],-transKwInAch[i])
-                    else:
-                        mcMechKwOutAch[i] = min(-min(curMaxMechMcKwIn[i], -transKwInAch[i]),max(-curMaxFcKwOut[i], mcKwIfFcIsReq[i]))
-                else:
-                    mcMechKwOutAch[i] = min(-min(curMaxMechMcKwIn[i],-transKwInAch[i]),-transKwInAch[i])
-
-            elif canPowerAllElectrically[i] == 1:
-                mcMechKwOutAch[i] = transKwInAch[i]
-
-            else:
-                ################################################################################################
-                ################################################################################################
-                ################################################################################################
-                #
-                mcMechKwOutAch[i] = mcMechKw4ForcedFc[i]
-    #             mcMechKwOutAch[i] = max(minMcKw2HelpFc[i],mcKwIfFcIsReq[i])
-
-            if mcMechKwOutAch[i]==0:
-                mcElecKwInAch[i] = 0.0
-                motor_index_debug[i] = 0
-
-            elif mcMechKwOutAch[i]<0:
-
-                if mcMechKwOutAch[i]*-1 == max(veh['mcKwInArray']):
-                    mcElecKwInAch[i] = mcMechKwOutAch[i]*veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
-                else:
-                    mcElecKwInAch[i] = mcMechKwOutAch[i]*veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwInArray']>min(max(veh['mcKwInArray'])-0.01,mcMechKwOutAch[i]*-1))-1)]
-
-            else:
-                if veh['maxMotorKw'] == mcMechKwOutAch[i]:
-                    mcElecKwInAch[i] = mcMechKwOutAch[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]
-                else:
-                    mcElecKwInAch[i] = mcMechKwOutAch[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,mcMechKwOutAch[i]))-1)]
-
-            if curMaxRoadwayChgKw[i] == 0:
-                roadwayChgKwOutAch[i] = 0
-
-            elif veh['fcEffType']==4:
-                roadwayChgKwOutAch[i] = max(0, mcElecKwInAch[i], maxEssRegenBufferChgKw[i], essRegenBufferDischgKw[i], curMaxRoadwayChgKw[i])
-
-            elif canPowerAllElectrically[i] == 1:
-                roadwayChgKwOutAch[i] = erAEKwOut[i]
-
-            else:
-                roadwayChgKwOutAch[i] = erKwIfFcIsReq[i]
-
-            minEssKw2HelpFc[i] = mcElecKwInAch[i] + auxInKw[i] - curMaxFcKwOut[i] - roadwayChgKwOutAch[i]
-
-            if veh['maxEssKw'] == 0 or veh['maxEssKwh'] == 0:
-                essKwOutAch[i]  = 0
-
-            elif veh['fcEffType']==4:
-
-                if transKwOutAch[i]>=0:
-                    essKwOutAch[i] = min(max(minEssKw2HelpFc[i],essDesiredKw4FcEff[i],essAccelRegenDischgKw[i]),curMaxEssKwOut[i],mcElecKwInAch[i]+auxInKw[i]-roadwayChgKwOutAch[i])
-
-                else:
-                    essKwOutAch[i] = mcElecKwInAch[i]+auxInKw[i]-roadwayChgKwOutAch[i]
-
-            elif highAccFcOnTag[i]==1 or veh['noElecAux']=='TRUE':
-                essKwOutAch[i] = mcElecKwInAch[i]-roadwayChgKwOutAch[i]
+            if transKwOutAch[i]>=0:
+                essKwOutAch[i] = min(max(minEssKw2HelpFc[i],essDesiredKw4FcEff[i],essAccelRegenDischgKw[i]),curMaxEssKwOut[i],mcElecKwInAch[i]+auxInKw[i]-roadwayChgKwOutAch[i])
 
             else:
                 essKwOutAch[i] = mcElecKwInAch[i]+auxInKw[i]-roadwayChgKwOutAch[i]
 
-            if veh['maxFuelConvKw']==0:
-                fcKwOutAch[i] = 0
+        elif highAccFcOnTag[i]==1 or veh['noElecAux']=='TRUE':
+            essKwOutAch[i] = mcElecKwInAch[i]-roadwayChgKwOutAch[i]
 
-            elif veh['fcEffType']==4:
-                fcKwOutAch[i] = min(curMaxFcKwOut[i], max(0, mcElecKwInAch[i]+auxInKw[i]-essKwOutAch[i]-roadwayChgKwOutAch[i]))
+        else:
+            essKwOutAch[i] = mcElecKwInAch[i]+auxInKw[i]-roadwayChgKwOutAch[i]
 
-            elif veh['noElecSys']=='TRUE' or veh['noElecAux']=='TRUE' or highAccFcOnTag[i]==1:
-                fcKwOutAch[i] = min(curMaxFcKwOut[i], max(0, transKwInAch[i]-mcMechKwOutAch[i]+auxInKw[i]))
+        if veh['maxFuelConvKw']==0:
+            fcKwOutAch[i] = 0
 
+        elif veh['fcEffType']==4:
+            fcKwOutAch[i] = min(curMaxFcKwOut[i], max(0, mcElecKwInAch[i]+auxInKw[i]-essKwOutAch[i]-roadwayChgKwOutAch[i]))
+
+        elif veh['noElecSys']=='TRUE' or veh['noElecAux']=='TRUE' or highAccFcOnTag[i]==1:
+            fcKwOutAch[i] = min(curMaxFcKwOut[i], max(0, transKwInAch[i]-mcMechKwOutAch[i]+auxInKw[i]))
+
+        else:
+            fcKwOutAch[i] = min(curMaxFcKwOut[i], max(0, transKwInAch[i]-mcMechKwOutAch[i]))
+
+        if fcKwOutAch[i]==0:
+            fcKwInAch[i] = 0.0
+            fcKwOutAch_pct[i] = 0
+
+        if veh['maxFuelConvKw'] == 0:
+            fcKwOutAch_pct[i] = 0
+        else:
+            fcKwOutAch_pct[i] = fcKwOutAch[i] / veh['maxFuelConvKw']
+
+        if fcKwOutAch[i] == 0:
+            fcKwInAch[i] = 0
+        else:
+            if fcKwOutAch[i] == veh['fcMaxOutkW']:
+                fcKwInAch[i] = fcKwOutAch[i]/veh['fcEffArray'][len(veh['fcEffArray'])-1]
             else:
-                fcKwOutAch[i] = min(curMaxFcKwOut[i], max(0, transKwInAch[i]-mcMechKwOutAch[i]))
+                fcKwInAch[i] = fcKwOutAch[i]/(veh['fcEffArray'][max(1,np.argmax(veh['fcKwOutArray']>min(fcKwOutAch[i],veh['fcMaxOutkW']-0.001))-1)])
 
-            if fcKwOutAch[i]==0:
-                fcKwInAch[i] = 0.0
-                fcKwOutAch_pct[i] = 0
+        fsKwOutAch[i] = np.copy( fcKwInAch[i] )
 
-            if veh['maxFuelConvKw'] == 0:
-                fcKwOutAch_pct[i] = 0
+        fsKwhOutAch[i] = fsKwOutAch[i]*secs[i]*(1/3600.0)
+
+
+        if veh['noElecSys']=='TRUE':
+            essCurKwh[i] = 0
+
+        elif essKwOutAch[i]<0:
+            essCurKwh[i] = essCurKwh[i-1]-essKwOutAch[i]*(secs[i]/3600.0)*np.sqrt(veh['essRoundTripEff'])
+
+        else:
+            essCurKwh[i] = essCurKwh[i-1]-essKwOutAch[i]*(secs[i]/3600.0)*(1/np.sqrt(veh['essRoundTripEff']))
+
+        if veh['maxEssKwh']==0:
+            soc[i] = 0.0
+
+        else:
+            soc[i] = essCurKwh[i]/veh['maxEssKwh']
+
+        if canPowerAllElectrically[i]==True and fcForcedOn[i]==False and fcKwOutAch[i]==0:
+            fcTimeOn[i] = 0
+        else:
+            fcTimeOn[i] = fcTimeOn[i-1] + secs[i]
+
+        ### Battery wear calcs
+
+        if veh['noElecSys']!='TRUE':
+
+            if essCurKwh[i]>essCurKwh[i-1]:
+                addKwh[i] = (essCurKwh[i]-essCurKwh[i-1]) + addKwh[i-1]
             else:
-                fcKwOutAch_pct[i] = fcKwOutAch[i] / veh['maxFuelConvKw']
+                addKwh[i] = 0
 
-            if fcKwOutAch[i] == 0:
-                fcKwInAch[i] = 0
+            if addKwh[i]==0:
+                dodCycs[i] = addKwh[i-1]/veh['maxEssKwh']
             else:
-                if fcKwOutAch[i] == veh['fcMaxOutkW']:
-                    fcKwInAch[i] = fcKwOutAch[i]/veh['fcEffArray'][len(veh['fcEffArray'])-1]
-                else:
-                    fcKwInAch[i] = fcKwOutAch[i]/(veh['fcEffArray'][max(1,np.argmax(veh['fcKwOutArray']>min(fcKwOutAch[i],veh['fcMaxOutkW']-0.001))-1)])
+                dodCycs[i] = 0
 
-            fsKwOutAch[i] = np.copy( fcKwInAch[i] )
-
-            fsKwhOutAch[i] = fsKwOutAch[i]*secs[i]*(1/3600.0)
-
-
-            if veh['noElecSys']=='TRUE':
-                essCurKwh[i] = 0
-
-            elif essKwOutAch[i]<0:
-                essCurKwh[i] = essCurKwh[i-1]-essKwOutAch[i]*(secs[i]/3600.0)*np.sqrt(veh['essRoundTripEff'])
-
+            if dodCycs[i]!=0:
+                essPercDeadArray[i] = np.power(veh['essLifeCoefA'],1.0/veh['essLifeCoefB']) / np.power(dodCycs[i],1.0/veh['essLifeCoefB'])
             else:
-                essCurKwh[i] = essCurKwh[i-1]-essKwOutAch[i]*(secs[i]/3600.0)*(1/np.sqrt(veh['essRoundTripEff']))
+                essPercDeadArray[i] = 0
 
-            if veh['maxEssKwh']==0:
-                soc[i] = 0.0
+        ### Energy Audit Calculations
+        dragKw[i] = 0.5*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*(((mpsAch[i-1]+mpsAch[i])/2.0)**3)/1000.0
+        if veh['maxEssKw'] == 0 or veh['maxEssKwh']==0:
+            essLossKw[i] = 0
+        elif essKwOutAch[i]<0:
+            essLossKw[i] = -essKwOutAch[i] - (-essKwOutAch[i]*np.sqrt(veh['essRoundTripEff']))
+        else:
+            essLossKw[i] = essKwOutAch[i]*(1.0/np.sqrt(veh['essRoundTripEff']))-essKwOutAch[i]
+        accelKw[i] = (veh['vehKg']/(2.0*(secs[i])))*((mpsAch[i]**2)-(mpsAch[i-1]**2))/1000.0
+        ascentKw[i] = gravityMPerSec2*np.sin(np.arctan(cycGrade[i]))*veh['vehKg']*((mpsAch[i-1]+mpsAch[i])/2.0)/1000.0
+        rrKw[i] = gravityMPerSec2*veh['wheelRrCoef']*veh['vehKg']*((mpsAch[i-1]+mpsAch[i])/2.0)/1000.0
 
-            else:
-                soc[i] = essCurKwh[i]/veh['maxEssKwh']
+        # reward calculation
+        if mcMechKw4ForcedFc[i]==0:
+            gam=1
+        else:
+            gam = (np.sign(mcMechKw4ForcedFc[i])+1)*0.5
+        eff_EM = np.interp(np.abs(mcMechKw4ForcedFc[i]), mcKwOutArray, veh['mcFullEffArray'])
+        m_equ_em_no_penalty =(s_EM*gam/eff_EM + s_EM*(1-gam)*eff_EM)*(mcMechKw4ForcedFc[i]*1000)/Qhlv;
+        x_soc = (soc[i-1]-soc_l)/(soc_h-soc_l);
+        weight_c=1;
+        f_penalty=(1-(x_soc**3)/2)*weight_c; # penalty
+        mc_m = f_penalty * m_equ_em_no_penalty
 
-            if canPowerAllElectrically[i]==True and fcForcedOn[i]==False and fcKwOutAch[i]==0:
-                fcTimeOn[i] = 0
-            else:
-                fcTimeOn[i] = fcTimeOn[i-1] + secs[i]
-
-            ### Battery wear calcs
-
-            if veh['noElecSys']!='TRUE':
-
-                if essCurKwh[i]>essCurKwh[i-1]:
-                    addKwh[i] = (essCurKwh[i]-essCurKwh[i-1]) + addKwh[i-1]
-                else:
-                    addKwh[i] = 0
-
-                if addKwh[i]==0:
-                    dodCycs[i] = addKwh[i-1]/veh['maxEssKwh']
-                else:
-                    dodCycs[i] = 0
-
-                if dodCycs[i]!=0:
-                    essPercDeadArray[i] = np.power(veh['essLifeCoefA'],1.0/veh['essLifeCoefB']) / np.power(dodCycs[i],1.0/veh['essLifeCoefB'])
-                else:
-                    essPercDeadArray[i] = 0
-
-            ### Energy Audit Calculations
-            dragKw[i] = 0.5*airDensityKgPerM3*veh['dragCoef']*veh['frontalAreaM2']*(((mpsAch[i-1]+mpsAch[i])/2.0)**3)/1000.0
-            if veh['maxEssKw'] == 0 or veh['maxEssKwh']==0:
-                essLossKw[i] = 0
-            elif essKwOutAch[i]<0:
-                essLossKw[i] = -essKwOutAch[i] - (-essKwOutAch[i]*np.sqrt(veh['essRoundTripEff']))
-            else:
-                essLossKw[i] = essKwOutAch[i]*(1.0/np.sqrt(veh['essRoundTripEff']))-essKwOutAch[i]
-            accelKw[i] = (veh['vehKg']/(2.0*(secs[i])))*((mpsAch[i]**2)-(mpsAch[i-1]**2))/1000.0
-            ascentKw[i] = gravityMPerSec2*np.sin(np.arctan(cycGrade[i]))*veh['vehKg']*((mpsAch[i-1]+mpsAch[i])/2.0)/1000.0
-            rrKw[i] = gravityMPerSec2*veh['wheelRrCoef']*veh['vehKg']*((mpsAch[i-1]+mpsAch[i])/2.0)/1000.0
-
-            # reward calculation
-            if mcMechKw4ForcedFc[i]==0:
-                gam=1
-            else:
-                gam = (np.sign(mcMechKw4ForcedFc[i])+1)*0.5
-            eff_EM = np.interp(np.abs(mcMechKw4ForcedFc[i]), mcKwOutArray, veh['mcFullEffArray'])
-            m_equ_em_no_penalty =(s_EM*gam/eff_EM + s_EM*(1-gam)*eff_EM)*(mcMechKw4ForcedFc[i]*1000)/Qhlv;
-            x_soc = (soc[i-1]-soc_l)/(soc_h-soc_l);
-            weight_c=1;
-            f_penalty=(1-(x_soc**3)/2)*weight_c; # penalty
-            mc_m = f_penalty * m_equ_em_no_penalty
-
-            # fuel consumption
-            fsKwOutAch1 = transKwInAch[i]-mcMechKw4ForcedFc[i]
-            fsKwhOutAch1 = fsKwOutAch1*secs[i]*(1/3600.0)
-            fs_m = fsKwhOutAch1*(1/kWhPerGGE)*kgPerGallon # [kg]
-            tot_m = mc_m+fs_m
-            reward[i] = -w_m*tot_m/tot_m_norm + cost_bias - (1-w_m)*(0.6-soc[i])*(soc[i]<0.6)/soc_error_norm;
+        # fuel consumption
+        fsKwOutAch1 = transKwInAch[i]-mcMechKw4ForcedFc[i]
+        fsKwhOutAch1 = fsKwOutAch1*secs[i]*(1/3600.0)
+        fs_m = fsKwhOutAch1*(1/kWhPerGGE)*kgPerGallon # [kg]
+        tot_m = mc_m+fs_m
+        reward[i] = -w_m*tot_m/tot_m_norm + cost_bias - (1-w_m)*(0.6-soc[i])*(soc[i]<0.6)/soc_error_norm;
 
 
 
