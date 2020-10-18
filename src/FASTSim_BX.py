@@ -281,6 +281,7 @@ def get_veh(vnum):
 
     return veh
 
+
 def sim_drive( cyc , veh ):
 
     if veh['vehPtType']==1:
@@ -790,8 +791,9 @@ def sim_drive_sub( cyc , veh , initSoc):
         ##################################################################################################
         ##################################################################################################
         EMS = 'RL'
-#         EMS = 'ECMS'
-#         EMS = 'rule'
+#        EMS = 'ECMS'
+#        EMS = 'rule'
+
         if EMS == 'RL':
             s_num=2
             Q=veh['Q']
@@ -807,7 +809,7 @@ def sim_drive_sub( cyc , veh , initSoc):
                 s_now=np.array([transKwInAch[i],mpsAch[i]])
                 indx_now_list = BX_lib.indx_list_search_s2(s_now,ss,gap_s,reso_s,reso_a)                                     
             if s_num==3:
-                s_now=np.array([transKwInAch[i],mpsAch[i],soc[i-1]])
+                s_now=np.array([transKwInAch[i],mpsAch[i], soc[i-1]])
                 indx_now_list = BX_lib.indx_list_search_s3(s_now,ss,gap_s,reso_s,reso_a)                                     
             Q_now_list=Q[indx_now_list]
             
@@ -817,9 +819,10 @@ def sim_drive_sub( cyc , veh , initSoc):
             
             ### if values are all zero, choose the first action
             if Q_now_max==0:                
-                    Q_now_max_indx=0                    
-            s_ele0[i]=s_now[0]
+                Q_now_max_indx=0                    
+            s_ele0[i]=s_now[0]    # velocity
             s_ele1[i]=s_now[1]
+            
             if s_num==3:
                 s_ele2[i]=s_now[2]
             a_indx[i]=Q_now_max_indx
@@ -831,8 +834,8 @@ def sim_drive_sub( cyc , veh , initSoc):
             mcminKw_temp=mcminKw
             mcmaxKw_temp=min(transKwInAch[i]-fsminKw,mcmaxKw)              
             a_ele[i]=aa[Q_now_max_indx]
-            mcMechKw4ForcedFc[i]=aa[Q_now_max_indx]*mcmaxKw_temp            
-
+            mcMechKw4ForcedFc[i]=aa[Q_now_max_indx]*mcmaxKw_temp     
+            
         if EMS=='ECMS':
             #### ECMS
             kgPerGallon=2.567 # [kg/gal ~ gasoline]
@@ -1227,3 +1230,7 @@ def sim_drive_sub( cyc , veh , initSoc):
     
 
     return output
+        
+        
+        
+   
