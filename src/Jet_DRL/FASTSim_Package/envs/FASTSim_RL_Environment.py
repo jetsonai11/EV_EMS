@@ -533,10 +533,25 @@ class FASTSimEnvironment(gym.Env):
         self.state = None
 
     def seed(self, seed=None):
+        """Sets the seed for this env's random number generator(s).
+        """
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
     def step(self, action, s_num):
+        """Run one timestep of the environment's dynamics. When end of
+        episode is reached, you are responsible for calling `reset()`
+        to reset this environment's state.
+        Accepts an action and returns a tuple (next state, reward, done, info).
+        Args:
+            action (object): an action provided by the agent
+            s_num (int): the number of states observed, 2 or 3
+        Returns:
+            observation (object): agent's observation of the current environment
+            reward (float) : amount of reward returned after previous action
+            done (bool): whether the episode has ended, in which case further step() calls will return undefined results
+            info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
+        """
 		### previous step value cache
 		### Component Limits
         curMaxFsKwOut = self.curMaxFsKwOut
@@ -652,7 +667,16 @@ class FASTSimEnvironment(gym.Env):
         return np.array(self.state), reward, done, {}
 
     def reset(self, s_num):
-        # Reset the state of the environment to an initial state
+        """Resets the environment to an initial state and returns an initial
+        observation.
+        Note that this function should not reset the environment's random
+        number generator(s); random variables in the environment's state should
+        be sampled independently between multiple calls to `reset()`. In other
+        words, each call of `reset()` should yield an environment suitable for
+        a new episode, independent of previous episodes.
+        Returns:
+            self.state (object): the initial state.
+        """
         if s_num == 2:
             self.state = (self.transKwInAch, self.mpsAch)
         if s_num == 3:
@@ -661,6 +685,12 @@ class FASTSimEnvironment(gym.Env):
         return np.array(self.state)
 
     def obtain_next_state(self, s_num):
+        """ Yields the environment state for the next timestep
+        Args:
+            s_num (int): number of of states
+        Returns:
+            self.state (object): next state
+        """
         ### Misc calcs
         if self.veh['noElecAux'] == 'TRUE':
             self.auxInKw = self.veh['auxKw'] / self.veh['altEff']
@@ -1197,6 +1227,10 @@ class FASTSimEnvironment(gym.Env):
         return self.state
 
     def obtain_reward(self):
+        """ Houses the calculation for reward at each second of the driving cycle
+        Returns:
+            reward (float): reward for each timestep
+        """
         # reward calculation
         if self.mcMechKw4ForcedFc == 0:
             gam = 1
@@ -1218,7 +1252,10 @@ class FASTSimEnvironment(gym.Env):
         return reward
 
     def is_done(self):
-        # define done flag
+        """ To evaluate whether or not the driving cycle has been completed
+        Returns:
+            Boolean
+        """
         if self.steps == 1370: # Double check if this is the length of duration of the driving cycle, but I believe that is the case
             return True
         return False
