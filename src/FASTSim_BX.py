@@ -303,13 +303,13 @@ def sim_drive( cyc , veh ):
         ##########################################################################
         ##########################################################################
         initSoc = 0.6
-#         initSoc = (veh['maxSoc']+veh['minSoc'])/2.0        
+#         initSoc = (veh['maxSoc']+veh['minSoc'])/2.0
 #         print('004/',initSoc)
         ess2fuelKwh = 1.0
         sim_count = 0
         ##########################################################################
         ##########################################################################
-        ##########################################################################   
+        ##########################################################################
         cyc_num = 'one'
 #         cyc_num = 'mul'
         if cyc_num=='one':
@@ -328,7 +328,7 @@ def sim_drive( cyc , veh ):
                 ess2fuelKwh = abs( output['ess2fuelKwh'] )
                 initSoc = min(1.0,max(0.0,output['final_soc']))
         np.copy( veh['maxSoc'] )
-        output = sim_drive_sub( cyc , veh , initSoc )        
+        output = sim_drive_sub( cyc , veh , initSoc )
 
     elif veh['vehPtType']==3 or veh['vehPtType']==4:
 
@@ -343,11 +343,11 @@ def sim_drive_sub( cyc , veh , initSoc):
 
     # sim_drive_sub receives second-by-second cycle information,
     # vehicle properties, and an initial state of charge and performs
-    # a backward facing powertrain simulation. The function returns an 
+    # a backward facing powertrain simulation. The function returns an
     # output dictionary starting at approximately line 1030. Powertrain
-    # variables of interest (summary or time-series) can be added to the 
+    # variables of interest (summary or time-series) can be added to the
     # output dictionary for reference.
-    
+
     ############################
     ###   Define Constants   ###
     ############################
@@ -736,7 +736,7 @@ def sim_drive_sub( cyc , veh , initSoc):
 
         elif transKwInAch[i] > 0:
             if transKwInAch[i] == veh['maxMotorKw']:
-        
+
                 electKwReq4AE[i] = transKwInAch[i]/veh['mcFullEffArray'][len(veh['mcFullEffArray'])-1]+auxInKw[i]
             else:
                 electKwReq4AE[i] = transKwInAch[i]/veh['mcFullEffArray'][max(1,np.argmax(veh['mcKwOutArray']>min(veh['maxMotorKw']-0.01,transKwInAch[i]))-1)]+auxInKw[i]
@@ -802,40 +802,40 @@ def sim_drive_sub( cyc , veh , initSoc):
             gap_s=veh['gap_s']
             reso_s=veh['reso_s']
             reso_a=veh['reso_a']
-            temp = 11        
-            
+            temp = 11
+
             ### get the current values
             if s_num==2:
                 s_now=np.array([transKwInAch[i],mpsAch[i]])
-                indx_now_list = BX_lib.indx_list_search_s2(s_now,ss,gap_s,reso_s,reso_a)                                     
+                indx_now_list = BX_lib.indx_list_search_s2(s_now,ss,gap_s,reso_s,reso_a)
             if s_num==3:
                 s_now=np.array([transKwInAch[i],mpsAch[i], soc[i-1]])
-                indx_now_list = BX_lib.indx_list_search_s3(s_now,ss,gap_s,reso_s,reso_a)                                     
+                indx_now_list = BX_lib.indx_list_search_s3(s_now,ss,gap_s,reso_s,reso_a)
             Q_now_list=Q[indx_now_list]
-            
+
             ### choose the max value action
             Q_now_max_indx=int(np.argmax(Q_now_list))
-            Q_now_max=Q_now_list[Q_now_max_indx]    
-            
+            Q_now_max=Q_now_list[Q_now_max_indx]
+
             ### if values are all zero, choose the first action
-            if Q_now_max==0:                
-                Q_now_max_indx=0                    
+            if Q_now_max==0:
+                Q_now_max_indx=0
             s_ele0[i]=s_now[0]    # velocity
             s_ele1[i]=s_now[1]
-            
+
             if s_num==3:
                 s_ele2[i]=s_now[2]
             a_indx[i]=Q_now_max_indx
             s_indx[i]=indx_now_list[0]
-            
+
             mcminKw = -curMaxMechMcKwIn[i]
             mcmaxKw =  curMaxMechMcKwIn[i]
             fsminKw = 0
             mcminKw_temp=mcminKw
-            mcmaxKw_temp=min(transKwInAch[i]-fsminKw,mcmaxKw)              
+            mcmaxKw_temp=min(transKwInAch[i]-fsminKw,mcmaxKw)
             a_ele[i]=aa[Q_now_max_indx]
-            mcMechKw4ForcedFc[i]=aa[Q_now_max_indx]*mcmaxKw_temp     
-            
+            mcMechKw4ForcedFc[i]=aa[Q_now_max_indx]*mcmaxKw_temp
+
         if EMS=='ECMS':
             #### ECMS
             kgPerGallon=2.567 # [kg/gal ~ gasoline]
@@ -851,7 +851,7 @@ def sim_drive_sub( cyc , veh , initSoc):
             mcminKw = -curMaxMechMcKwIn[i]
             mcmaxKw =  curMaxMechMcKwIn[i]
             fsminKw = 0
-            #         fsmaxKw = 
+            #         fsmaxKw =
 
             mcminKw_temp=mcminKw
             mcmaxKw_temp=mcmaxKw
@@ -897,47 +897,47 @@ def sim_drive_sub( cyc , veh , initSoc):
 
             tot_m = mc_m+fs_m
             min_m_ele = np.argmin(tot_m)
-            min_m = tot_m[min_m_ele]                
-            mcMechKw4ForcedFc[i] = mcMechKw4ForcedFc1[min_m_ele]            
-        if EMS == 'rule':       
+            min_m = tot_m[min_m_ele]
+            mcMechKw4ForcedFc[i] = mcMechKw4ForcedFc1[min_m_ele]
+        if EMS == 'rule':
             #### Theromstatic
             soc_slop=50
             soc_ref = 0.6
-            mcMechKw4ForcedFc[i] =(soc[i-1]-soc_ref)*soc_slop            
-        
-        
-        if fcForcedOn[i]==False or canPowerAllElectrically[i]==False:            
+            mcMechKw4ForcedFc[i] =(soc[i-1]-soc_ref)*soc_slop
+
+
+        if fcForcedOn[i]==False or canPowerAllElectrically[i]==False:
             fcForcedState[i] = 1
 #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
-#             mcMechKw4ForcedFc[i] = 0            
+#             mcMechKw4ForcedFc[i] = 0
 
-        elif transKwInAch[i]<0:            
+        elif transKwInAch[i]<0:
             fcForcedState[i] = 2
 #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
-#             mcMechKw4ForcedFc[i] = transKwInAch[i]            
+#             mcMechKw4ForcedFc[i] = transKwInAch[i]
 
         elif veh['maxFcEffKw']==transKwInAch[i]:
             fcForcedState[i] = 3
 #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
 #             mcMechKw4ForcedFc[i] = 0
-            
+
         elif veh['idleFcKw'] > transKwInAch[i] and cycAccelKw[i] >=0:
             fcForcedState[i] = 4
 #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
 #             mcMechKw4ForcedFc[i] = transKwInAch[i] - veh['idleFcKw']
-            
+
         elif veh['maxFcEffKw']>transKwInAch[i]:
             fcForcedState[i] = 5
 #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
 #             mcMechKw4ForcedFc[i] = 0
-            
+
         else:
-            ##################################################################################################        
+            ##################################################################################################
             ## max ICE efficiency, the rest is filled in by EM
-            fcForcedState[i] = 6            
-#             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop          
-#             mcMechKw4ForcedFc[i] = transKwInAch[i] - veh['maxFcEffKw']            
-        
+            fcForcedState[i] = 6
+#             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
+#             mcMechKw4ForcedFc[i] = transKwInAch[i] - veh['maxFcEffKw']
+
         if (-mcElectInKwForMaxFcEff[i]-curMaxRoadwayChgKw[i])>0:
             essDesiredKw4FcEff[i] = (-mcElectInKwForMaxFcEff[i]-curMaxRoadwayChgKw[i]) * veh['essDischgToFcMaxEffPerc']
 
@@ -987,7 +987,7 @@ def sim_drive_sub( cyc , veh , initSoc):
             mcMechKwOutAch[i] = 0
 
         elif fcForcedOn[i]==True and canPowerAllElectrically[i]==True and (veh['vehPtType']==2.0 or veh['vehPtType']==3.0) and veh['fcEffType']!=4:
-            mcMechKwOutAch[i] =  mcMechKw4ForcedFc[i]
+            mcMechKwOutAch[i] = mcMechKw4ForcedFc[i]
 
         elif transKwInAch[i]<=0:
             if veh['fcEffType']!=4 and veh['maxFuelConvKw']> 0:
@@ -995,17 +995,17 @@ def sim_drive_sub( cyc , veh , initSoc):
                     mcMechKwOutAch[i] = -min(curMaxMechMcKwIn[i],-transKwInAch[i])
                 else:
                     mcMechKwOutAch[i] = min(-min(curMaxMechMcKwIn[i], -transKwInAch[i]),max(-curMaxFcKwOut[i], mcKwIfFcIsReq[i]))
-            else:                
+            else:
                 mcMechKwOutAch[i] = min(-min(curMaxMechMcKwIn[i],-transKwInAch[i]),-transKwInAch[i])
 
-        elif canPowerAllElectrically[i] == 1:          
+        elif canPowerAllElectrically[i] == 1:
             mcMechKwOutAch[i] = transKwInAch[i]
 
         else:
             ################################################################################################
             ################################################################################################
             ################################################################################################
-            #  
+            #
             mcMechKwOutAch[i] = mcMechKw4ForcedFc[i]
 #             mcMechKwOutAch[i] = max(minMcKw2HelpFc[i],mcKwIfFcIsReq[i])
 
@@ -1168,7 +1168,7 @@ def sim_drive_sub( cyc , veh , initSoc):
 
     else:
         output['ess2fuelKwh'] = essDischgKj/(fuelKj+roadwayChgKj)
-    
+
     fuelKg=np.asarray(fsKwhOutAch)/veh['fuelKwhPerKg']
     fuelKgAch=np.zeros(len(fuelKg))
     fuelKgAch[0]=fuelKg[0]
@@ -1210,7 +1210,7 @@ def sim_drive_sub( cyc , veh , initSoc):
     output['time'] = np.asarray(cycSecs)
     output['fcForcedState'] = np.asarray(fcForcedState)
     output['transKwInAch'] = np.asarray(transKwInAch)
-    output['mcMechKwOutAch'] = np.asarray(mcMechKwOutAch)    
+    output['mcMechKwOutAch'] = np.asarray(mcMechKwOutAch)
     output['auxInKw'] = np.asarray(auxInKw)
     output['mcElecKwInAch'] = np.asarray(mcElecKwInAch)
     output['mcMechKw4ForcedFc'] = np.asarray(mcMechKw4ForcedFc)
@@ -1226,11 +1226,7 @@ def sim_drive_sub( cyc , veh , initSoc):
     output['fcForcedOn']=np.array(fcForcedOn)
     output['fuelKg']=np.array(fuelKg)
     output['fuelKgAch']=np.array(fuelKgAch)
-    
-    
+
+
 
     return output
-        
-        
-        
-   
