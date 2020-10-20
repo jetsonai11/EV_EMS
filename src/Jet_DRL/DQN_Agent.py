@@ -1,5 +1,5 @@
 import numpy as np
-from utils import *   # import replay buffer for experienced replay and plotting function
+from utils import *   # import replay buffer for experienced replay
 from keras.layers import Dense, Activation
 from keras.models import Sequential, load_model
 from keras.optimizers import Adam
