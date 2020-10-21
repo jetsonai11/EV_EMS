@@ -1,1 +1,1 @@
-from FASTSim_RL_Environment import *
+from FASTSim_Package.envs.FASTSim_RL_Environment import *

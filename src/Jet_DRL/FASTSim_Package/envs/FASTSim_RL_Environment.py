@@ -52,10 +52,12 @@ import warnings
 import csv
 import gym
 from gym import spaces
+from gym.utils import seeding
 warnings.simplefilter('ignore')
 
+
 def get_standard_cycle(cycle_name):
-    csv_path = '..//cycles//'+cycle_name+'.csv'
+    csv_path = '//Users//Mingjue//EV_EMS//cycles//'+cycle_name+'.csv'
     data = dict()
     dkeys=[]
     with open(csv_path) as csvfile:
@@ -76,7 +78,7 @@ def get_standard_cycle(cycle_name):
     return data
 
 def get_veh(vnum):
-    with open('..//docs//FASTSim_py_veh_db.csv','r') as csvfile:
+    with open('//Users//Mingjue//EV_EMS//docs//FASTSim_py_veh_db.csv','r') as csvfile:
 
         reader = csv.reader(csvfile)
         vd = dict()
@@ -374,17 +376,21 @@ class FASTSimEnvironment(gym.Env):
         ###   Define Constants   ###
         ############################
 
-        self.veh = getveh(24)
-        self.cyc = FASTSim_RL.get_standard_cycle("UDDS")
+        self.veh = get_veh(24)
+        self.cyc = get_standard_cycle("UDDS")
         self.initSoc = 0.6
+
+        # number of states wanted
+        self.s_num = 2
 
         self.airDensityKgPerM3 = 1.2 # Sea level air density at approximately 20C
         self.gravityMPerSec2 = 9.81
         self.mphPerMps = 2.2369
         self.kWhPerGGE = 33.7
         self.metersPerMile = 1609.00
-        self.maxTracMps2 = ((((self.veh['wheelCoefOfFric']*self.veh['driveAxleWeightFrac']*self.veh['vehKg']*self.gravityMPerSec2)/(1+((self.veh['vehCgM']*self.veh['wheelCoefOfFric'])/self.veh['wheelBaseM']))))/(self.veh['vehKg']*self.gravityMPerSec2))*self.gravityMPerSec2
-        self.maxRegenKwh = 0.5*self.veh['vehKg']*(27**2)/(3600*1000)
+        self.maxTracMps2 = ((((self.veh['wheelCoefOfFric'] * self.veh['driveAxleWeightFrac'] * self.veh['vehKg'] * self.gravityMPerSec2) / (1 + ((self.veh['vehCgM'] * \
+        self.veh['wheelCoefOfFric']) / self.veh['wheelBaseM'])))) / (self.veh['vehKg'] * self.gravityMPerSec2)) * self.gravityMPerSec2
+        self.maxRegenKwh = 0.5 * self.veh['vehKg'] * (27 ** 2) / (3600 * 1000)
 
         #############################
         ### Initialize Variables  ###
@@ -441,7 +447,7 @@ class FASTSimEnvironment(gym.Env):
         self.cycTransKwOutReq = 0
         self.cycMet = 0
         self.transKwOutAch = 0
-        self.transKwOutAch = 0
+        self.transKwInAch = 0
         self.curSocTarget = 0
         self.minMcKw2HelpFc = 0
         self.mcMechKwOutAch = 0
@@ -529,7 +535,7 @@ class FASTSimEnvironment(gym.Env):
         self.essCurKwh = self.initSoc * self.veh['maxEssKwh']
         self.soc = self.initSoc
 
-        self.seed()  # not sure if this is necessary
+        self.seed() # not sure if this is necessary
         self.state = None
 
     def seed(self, seed=None):
@@ -538,7 +544,7 @@ class FASTSimEnvironment(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action, s_num):
+    def step(self, action):
         """Run one timestep of the environment's dynamics. When end of
         episode is reached, you are responsible for calling `reset()`
         to reset this environment's state.
@@ -667,7 +673,7 @@ class FASTSimEnvironment(gym.Env):
 
         return np.array(self.state), reward, done, {}
 
-    def reset(self, s_num):
+    def reset(self):
         """Resets the environment to an initial state and returns an initial
         observation.
         Note that this function should not reset the environment's random
@@ -678,9 +684,9 @@ class FASTSimEnvironment(gym.Env):
         Returns:
             self.state (object): the initial state.
         """
-        if s_num == 2:
+        if self.s_num == 2:
             self.state = (self.transKwInAch, self.mpsAch)
-        if s_num == 3:
+        if self.s_num == 3:
             self.state = (self.transKwInAch, self.mpsAch, self.soc)
 
         return np.array(self.state)
@@ -695,7 +701,7 @@ class FASTSimEnvironment(gym.Env):
         self.mcMechKw4ForcedFc = action * min(self.transKwInAch, self.curMaxMechMcKwIn)
 
 
-    def obtain_next_state(self, s_num):
+    def obtain_next_state(self):
         """ Yields the environment state for the next timestep
         Args:
             s_num (int): number of of states
@@ -1230,9 +1236,9 @@ class FASTSimEnvironment(gym.Env):
         self.rrKw = self.gravityMPerSec2 * self.veh['wheelRrCoef'] * self.veh['vehKg'] * ((mpsAch + self.mpsAch) / 2.0) / 1000.0
 
         # return next state
-        if s_num == 2:
+        if self.s_num == 2:
             self.state = (self.transKwInAch, self.mpsAch)
-        if s_num == 3:
+        if self.s_num == 3:
             self.state = (self.transKwInAch, self.mpsAch, self.soc)
 
         return self.state
