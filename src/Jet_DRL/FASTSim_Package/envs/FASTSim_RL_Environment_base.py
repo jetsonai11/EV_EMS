@@ -665,7 +665,49 @@ class FASTSimEnvironment(gym.Env):
         soc = self.soc
 
         self.action(action)
+        self.state = self.obtain_next_state()
+        reward = self.obtain_reward()
+        done = self.is_done()
 
+        self.steps = self.steps + 1
+
+        return np.array(self.state), reward, done, {}
+
+    def reset(self):
+        """Resets the environment to an initial state and returns an initial
+        observation.
+        Note that this function should not reset the environment's random
+        number generator(s); random variables in the environment's state should
+        be sampled independently between multiple calls to `reset()`. In other
+        words, each call of `reset()` should yield an environment suitable for
+        a new episode, independent of previous episodes.
+        Returns:
+            self.state (object): the initial state.
+        """
+        if self.s_num == 2:
+            self.state = (self.transKwInAch, self.mpsAch)
+        if self.s_num == 3:
+            self.state = (self.transKwInAch, self.mpsAch, self.soc)
+
+        return np.array(self.state)
+
+    def action(self, action):
+        """Converts action taken by the agent to action variable 'mcMechKw4ForcedFc'
+        Basically this receives the output from the "choose_action" function from
+        the DQN.Agent file and convert the action to variable 'mcMechKw4ForcedFc'
+        Because only this variable could be passed into the driving cycle to be
+        part of the decision making process and reward calculations.
+        """
+        self.mcMechKw4ForcedFc = action * min(self.transKwInAch, self.curMaxMechMcKwIn)
+
+
+    def obtain_next_state(self):
+        """ Yields the environment state for the next timestep
+        Args:
+            s_num (int): number of of states
+        Returns:
+            self.state (object): next state
+        """
         ### Misc calcs
         if self.veh['noElecAux'] == 'TRUE':
             self.auxInKw = self.veh['auxKw'] / self.veh['altEff']
@@ -1199,6 +1241,13 @@ class FASTSimEnvironment(gym.Env):
         if self.s_num == 3:
             self.state = (self.transKwInAch, self.mpsAch, self.soc)
 
+        return self.state
+
+    def obtain_reward(self):
+        """ Houses the calculation for reward at each second of the driving cycle
+        Returns:
+            reward (float): reward for each timestep
+        """
         # reward calculation
         if self.mcMechKw4ForcedFc == 0:
             gam = 1
@@ -1217,39 +1266,7 @@ class FASTSimEnvironment(gym.Env):
         tot_m = mc_m + fs_m
         reward = -self.w_m * tot_m / self.tot_m_norm + self.cost_bias - (1 - self.w_m) * (0.6 - self.soc) * (self.soc < 0.6) / self.soc_error_norm;
 
-        done = self.is_done()
-
-        self.steps = self.steps + 1
-
-        return np.array(self.state), reward, done, info
-
-
-    def reset(self):
-        """Resets the environment to an initial state and returns an initial
-        observation.
-        Note that this function should not reset the environment's random
-        number generator(s); random variables in the environment's state should
-        be sampled independently between multiple calls to `reset()`. In other
-        words, each call of `reset()` should yield an environment suitable for
-        a new episode, independent of previous episodes.
-        Returns:
-            self.state (object): the initial state.
-        """
-        if self.s_num == 2:
-            self.state = (self.transKwInAch, self.mpsAch)
-        if self.s_num == 3:
-            self.state = (self.transKwInAch, self.mpsAch, self.soc)
-
-        return np.array(self.state)
-
-    def action(self, action):
-        """Converts action taken by the agent to action variable 'mcMechKw4ForcedFc'
-        Basically this receives the output from the "choose_action" function from
-        the DQN.Agent file and convert the action to variable 'mcMechKw4ForcedFc'
-        Because only this variable could be passed into the driving cycle to be
-        part of the decision making process and reward calculations.
-        """
-        self.mcMechKw4ForcedFc = action * min(self.transKwInAch, self.curMaxMechMcKwIn)
+        return reward
 
     def is_done(self):
         """ To evaluate whether or not the driving cycle has been completed
