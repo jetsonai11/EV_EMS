@@ -54,7 +54,7 @@ import BX_lib
 warnings.simplefilter('ignore')
 
 def get_standard_cycle(cycle_name):
-    csv_path = '..//cycles//'+cycle_name+'.csv'
+    csv_path = '//Users//Mingjue//EV_EMS//cycles//'+cycle_name+'.csv'
     data = dict()
     dkeys=[]
     with open(csv_path) as csvfile:
@@ -75,7 +75,7 @@ def get_standard_cycle(cycle_name):
     return data
 
 def get_veh(vnum):
-    with open('..//docs//FASTSim_py_veh_db.csv','r') as csvfile:
+    with open('//Users//Mingjue//EV_EMS//docs//FASTSim_py_veh_db.csv','r') as csvfile:
 
         reader = csv.reader(csvfile)
         vd = dict()

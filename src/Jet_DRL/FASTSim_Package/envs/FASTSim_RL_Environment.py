@@ -57,8 +57,8 @@ warnings.simplefilter('ignore')
 
 
 def get_standard_cycle(cycle_name):
-    csv_path = '..//cycles//'+cycle_name+'.csv'
-    #csv_path = '//Users//Mingjue//EV_EMS//cycles//'+cycle_name+'.csv'
+    #csv_path = '..//cycles//'+cycle_name+'.csv'
+    csv_path = '//Users//Mingjue//EV_EMS//cycles//'+cycle_name+'.csv'
     data = dict()
     dkeys=[]
     with open(csv_path) as csvfile:
@@ -79,8 +79,8 @@ def get_standard_cycle(cycle_name):
     return data
 
 def get_veh(vnum):
-    with open('..//docs//FASTSim_py_veh_db.csv','r') as csvfile:
-    #with open('//Users//Mingjue//EV_EMS//docs//FASTSim_py_veh_db.csv','r') as csvfile:
+    #with open('..//docs//FASTSim_py_veh_db.csv','r') as csvfile:
+    with open('//Users//Mingjue//EV_EMS//docs//FASTSim_py_veh_db.csv','r') as csvfile:
         reader = csv.reader(csvfile)
         vd = dict()
         data = dict()
@@ -397,18 +397,20 @@ class FASTSimEnvironment(gym.Env):
         ### Initialize Variables  ###
         #############################
 
+		# steps indicate the number of while iterations, which is the same meaning of "i" in original for loop
+        self.steps = 1
+
         ### Drive Cycle [the following six varaibles are fixed array, which features the predefined road
 		#   and cycle conditions. They never change during step iteration. We will us the self.steps as
 		#   the index to get the value from the array every time the step function is called]
-        self.cycSecs = np.copy(self.cyc['cycSecs'])
-        self.cycMps = np.copy(self.cyc['cycMps'])
-        self.cycGrade = np.copy(self.cyc['cycGrade'])
-        self.cycRoadType = np.copy(self.cyc['cycRoadType'])
-        self.cycMph = [x * self.mphPerMps for x in self.cyc['cycMps']]
-        self.secs = np.insert(np.diff(self.cycSecs), 0, 0)
+        self.cycSecs = np.copy(self.cyc['cycSecs'])[self.steps]
+        self.cycMps = np.copy(self.cyc['cycMps'])[self.steps]
+        self.cycGrade = np.copy(self.cyc['cycGrade'])[self.steps]
+        self.cycRoadType = np.copy(self.cyc['cycRoadType'])[self.steps]
+        self.cycMph = [x * self.mphPerMps for x in self.cyc['cycMps']][self.steps]
+        self.secs = np.insert(np.diff(self.cycSecs), 0, 0)[self.steps]
 
-		# steps indicate the number of while iterations, which is the same meaning of "i" in original for loop
-        self.steps = 1
+        #print(len(self.cycSecs), len(self.cycMps), len(self.cycGrade), len(self.cycRoadType), len(self.cycMph), len(self.secs))
 
         ### Component Limits
         self.curMaxFsKwOut = 0
@@ -666,7 +668,7 @@ class FASTSimEnvironment(gym.Env):
         soc = self.soc
 
         self.action(action)
-
+        print('action:', action)
         ### Misc calcs
         if self.veh['noElecAux'] == 'TRUE':
             self.auxInKw = self.veh['auxKw'] / self.veh['altEff']
@@ -684,9 +686,8 @@ class FASTSimEnvironment(gym.Env):
         self.maxTracMps = mpsAch + (self.maxTracMps2 * self.secs[self.steps])
 
         ### Component Limits
-        self.curMaxFsKwOut = min(self.veh['maxFuelStorKw'], fsKwOutAch + ((self.veh['maxFuelStorKw']/self.veh['fuelStorSecsToPeakPwr'])*(self.secs[self.steps])))
-        self.fcTransLimKw = fcKwOutAch + ((self.veh['maxFuelConvKw']/self.veh['fuelConvSecsToPeakPwr'])*(self.secs[self.steps]))
-
+        self.curMaxFsKwOut = min(self.veh['maxFuelStorKw'], fsKwOutAch + ((self.veh['maxFuelStorKw'] / self.veh['fuelStorSecsToPeakPwr']) * (self.secs[self.steps])))
+        self.fcTransLimKw = fcKwOutAch + ((self.veh['maxFuelConvKw']/self.veh['fuelConvSecsToPeakPwr']) * (self.secs[self.steps]))
         self.fcMaxKwIn = min(self.curMaxFsKwOut, self.veh['maxFuelStorKw'])
         self.fcFsLimKw = self.veh['fcMaxOutkW']
         self.curMaxFcKwOut = min(self.veh['maxFuelConvKw'], self.fcFsLimKw, self.fcTransLimKw)
@@ -705,11 +706,15 @@ class FASTSimEnvironment(gym.Env):
             self.essCapLimChgKw = max(((self.veh['maxSoc'] - soc) * self.veh['maxEssKwh'] * (1 / np.sqrt(self.veh['essRoundTripEff']))) / ((self.secs[self.steps]) * (1 / 3600.0)), 0)
         self.curMaxEssChgKw = min(self.essCapLimChgKw, self.veh['maxEssKw'])
 
+        #self.curMaxRoadwayChgKw = self.curMaxRoadwayChgKw[0]
+
         if self.veh['fcEffType'] == 4:
-            self.curMaxElecKw = self.curMaxFcKwOut + self.curMaxRoadwayChgKw + self.curMaxEssKwOut - self.auxInKw
+            self.curMaxElecKw = self.curMaxFcKwOut + self.curMaxRoadwayChgKw[self.steps] + self.curMaxEssKwOut - self.auxInKw
 
         else:
-            self.curMaxElecKw = self.curMaxRoadwayChgKw + self.curMaxEssKwOut - self.auxInKw
+            self.curMaxElecKw = self.curMaxRoadwayChgKw[self.steps] + self.curMaxEssKwOut - self.auxInKw
+        #print('self.curMaxFcKwOut:', self.curMaxFcKwOut, "self.curMaxRoadwayChgKw:", self.curMaxRoadwayChgKw, "self.curMaxEssKwOut:", "self.auxInKw:", self.auxInKw)
+        #print('self.curMaxElecKw:', self.curMaxElecKw, "self.veh['mcMaxElecInKw']:", self.veh['mcMaxElecInKw'])
 
         self.curMaxAvailElecKw = min(self.curMaxElecKw, self.veh['mcMaxElecInKw'])
 
@@ -721,7 +726,7 @@ class FASTSimEnvironment(gym.Env):
         else:
             self.mcElecInLimKw = 0.0
 
-        self.mcTransiLimKw = abs(mcMechKwOutAch) + ((self.veh['maxMotorKw'] / self.veh['motorSecsToPeakPwr'])*(self.secs[self.steps]))
+        self.mcTransiLimKw = abs(mcMechKwOutAch) + ((self.veh['maxMotorKw'] / self.veh['motorSecsToPeakPwr']) * (self.secs[self.steps]))
         self.curMaxMcKwOut = max(min(self.mcElecInLimKw, self.mcTransiLimKw, self.veh['maxMotorKw']), -self.veh['maxMotorKw'])
 
         if self.curMaxMcKwOut == 0:
@@ -741,10 +746,11 @@ class FASTSimEnvironment(gym.Env):
             self.essLimMcRegenKw = 0.0
 
         else:
-            if self.veh['maxMotorKw'] == self.curMaxEssChgKw - self.curMaxRoadwayChgKw:
+            if self.veh['maxMotorKw'] == self.curMaxEssChgKw - self.curMaxRoadwayChgKw[self.steps]:
                 self.essLimMcRegenKw = min(self.veh['maxMotorKw'], self.curMaxEssChgKw / self.veh['mcFullEffArray'][len(self.veh['mcFullEffArray']) - 1])
             else:
-                self.essLimMcRegenKw = min(self.veh['maxMotorKw'], self.curMaxEssChgKw / self.veh['mcFullEffArray'][max(1,np.argmax(self.veh['mcKwOutArray'] > min(self.veh['maxMotorKw'] - 0.01, self.curMaxEssChgKw - self.curMaxRoadwayChgKw)) - 1)])
+                self.essLimMcRegenKw = min(self.veh['maxMotorKw'], self.curMaxEssChgKw / self.veh['mcFullEffArray'][max(1, np.argmax(self.veh['mcKwOutArray'] > min(self.veh['maxMotorKw']\
+                 - 0.01, self.curMaxEssChgKw - self.curMaxRoadwayChgKw[self.steps])) - 1)])
 
         self.curMaxMechMcKwIn = min(self.essLimMcRegenKw, self.veh['maxMotorKw'])
         self.curMaxTracKw = (((self.veh['wheelCoefOfFric'] * self.veh['driveAxleWeightFrac'] * self.veh['vehKg'] * self.gravityMPerSec2) / (1 + ((self.veh['vehCgM'] * \
@@ -782,9 +788,14 @@ class FASTSimEnvironment(gym.Env):
         * self.veh['wheelInertiaKgM2'] * (self.veh['numWheels'] * ((mpsAch / self.veh['wheelRadiusM']) ** 2.0)) / self.secs[self.steps]) / 1000.0
 
         self.cycWheelKwReq = self.cycTracKwReq + self.cycRrKw + self.cycTireInertiaKw
-        self.regenContrLimKwPerc = self.veh['maxRegen'] / (1 + self.veh['regenA'] * np.exp(-self.veh['regenB'] * ((self.cycMph + mpsAch * self.mphPerMps)/2.0+1-0)))
-        self.cycRegenBrakeKw = max(min(self.curMaxMechMcKwIn * self.veh['transEff'],self.regenContrLimKwPerc*-self.cycWheelKwReq),0)
-        self.cycFricBrakeKw = -min(self.cycRegenBrakeKw+self.cycWheelKwReq,0)
+        #print(self.cycMph)
+        #print(len(self.cycMph))
+        #print(self.cycMph[self.steps])
+        #print(self.cycMph[self.steps-1])
+        #print(self.veh['maxRegen'], self.veh['regenA'], self.veh['regenB'], self.cycMph, mpsAch, self.mphPerMps)
+        self.regenContrLimKwPerc = self.veh['maxRegen'] / (1 + self.veh['regenA'] * np.exp(-self.veh['regenB'] * ((self.cycMph[self.steps] + mpsAch * self.mphPerMps) /2.0+1-0)))
+        self.cycRegenBrakeKw = max(min(self.curMaxMechMcKwIn * self.veh['transEff'], self.regenContrLimKwPerc * -self.cycWheelKwReq), 0)
+        self.cycFricBrakeKw = -min(self.cycRegenBrakeKw+self.cycWheelKwReq, 0)
         self.cycTransKwOutReq = self.cycWheelKwReq + self.cycFricBrakeKw
 
         if self.cycTransKwOutReq <= self.curMaxTransKwOut:
@@ -937,18 +948,18 @@ class FASTSimEnvironment(gym.Env):
                 self.desiredEssKwOutForAE = -self.essAccelBufferChgKw
 
             else:
-                self.desiredEssKwOutForAE = self.transKwInAch + self.auxInKw - self.curMaxRoadwayChgKw
+                self.desiredEssKwOutForAE = self.transKwInAch + self.auxInKw - self.curMaxRoadwayChgKw[self.steps]
 
         else:
             self.desiredEssKwOutForAE = 0
 
         if self.canPowerAllElectrically:
-            self.essAEKwOut = max(-self.curMaxEssChgKw, -self.maxEssRegenBufferChgKw, min(0, self.curMaxRoadwayChgKw - (self.transKwInAch + self.auxInKw)), min(self.curMaxEssKwOut, self.desiredEssKwOutForAE))
+            self.essAEKwOut = max(-self.curMaxEssChgKw, -self.maxEssRegenBufferChgKw, min(0, self.curMaxRoadwayChgKw[self.steps] - (self.transKwInAch + self.auxInKw)), min(self.curMaxEssKwOut, self.desiredEssKwOutForAE))
 
         else:
             self.essAEKwOut = 0
 
-        self.erAEKwOut = min(max(0, self.transKwInAch + self.auxInKw - self.essAEKwOut), self.curMaxRoadwayChgKw)
+        self.erAEKwOut = min(max(0, self.transKwInAch + self.auxInKw - self.essAEKwOut), self.curMaxRoadwayChgKw[self.steps])
 
         if self.prevfcTimeOn > 0 and self.prevfcTimeOn < self.veh['minFcTimeOn'] - self.secs[self.steps]:
             self.fcForcedOn = True
