@@ -658,6 +658,7 @@ class FASTSimEnvironment(gym.Env):
         essCurKwh = self.essCurKwh
         soc = self.soc
 
+        self.action(action)
         self.state = self.obtain_next_state(s_num)
         reward = self.obtain_reward()
         done = self.is_done()
@@ -683,6 +684,16 @@ class FASTSimEnvironment(gym.Env):
             self.state = (self.transKwInAch, self.mpsAch, self.soc)
 
         return np.array(self.state)
+
+    def action(self, action):
+        """Converts action taken by the agent to action variable 'mcMechKw4ForcedFc'
+        Basically this receives the output from the "choose_action" function from
+        the DQN.Agent file and convert the action to variable 'mcMechKw4ForcedFc'
+        Because only this variable could be passed into the driving cycle to be
+        part of the decision making process and reward calculations.
+        """
+        self.mcMechKw4ForcedFc = action * min(self.transKwInAch, self.curMaxMechMcKwIn)
+
 
     def obtain_next_state(self, s_num):
         """ Yields the environment state for the next timestep
