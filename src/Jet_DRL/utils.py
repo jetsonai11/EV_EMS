@@ -9,7 +9,7 @@ class ReplayBuffer(object):
         self.new_state_memory = np.zeros((self.mem_size, input_shape))
         #dtype = np.int64 if self.discrete else np.float32
         #self.action_memory = np.zeros((self.mem_size, n_actions), dtype=np.float32)
-        self.action_memory = np.zeros((self.mem_size, n_actions))
+        self.action_memory = np.zeros((self.mem_size, n_actions), dtype=np.float32)
         self.reward_memory = np.zeros(self.mem_size)
         self.terminal_memory = np.zeros(self.mem_size, dtype=np.float32)
         #self.terminal_memory = np.zeros(self.mem_size, dtype=np.uint8)
@@ -19,13 +19,11 @@ class ReplayBuffer(object):
         # when mem_cntr exceeds the mem_size, it will return to the start and override memories
         index = self.mem_cntr % self.mem_size
         self.state_memory[index] = state
-        #if self.discrete:
-            #actions = np.zeros(self.action_memory.shape[1])
-            #actions[action] = 1.0
-            #self.action_memory[index] = actions
+        actions = np.zeros(self.action_memory.shape[1])
+        actions[action] = 1.0
         #else:
             #self.action_memory[index] = action
-        self.action_memory[index] = action
+        self.action_memory[index] = actions
         self.reward_memory[index] = reward
         self.new_state_memory[index] = state_
         #self.terminal_memory[index] = 1 - int(done)
@@ -40,7 +38,7 @@ class ReplayBuffer(object):
         actions = self.action_memory[batch]
         rewards = self.reward_memory[batch]
         states_ = self.new_state_memory[batch]
-        terminal = self.terminal_memory[batch]
+        dones = self.terminal_memory[batch]
 
         return states, actions, rewards, states_, dones
 

@@ -674,7 +674,8 @@ class FASTSimEnvironment(gym.Env):
         soc = self.soc
 
         self.action(action)
-        print('action:', action)
+        #print('action:', action)
+
         ### Misc calcs
         if self.veh['noElecAux'] == 'TRUE':
             self.auxInKw = self.veh['auxKw'] / self.veh['altEff']
@@ -838,7 +839,7 @@ class FASTSimEnvironment(gym.Env):
             Total3 = Drag3 / 1e3
             Total2 = (Accel2 + Drag2 + Wheel2) / 1e3
             Total1 = (Drag1 + Roll1 + Ascent1) / 1e3
-            Total0 = (Accel0 + Drag0 + Roll0 + Ascent0 + Wheel0) / 1e3 - self.stepscurMaxTransKwOut
+            Total0 = (Accel0 + Drag0 + Roll0 + Ascent0 + Wheel0) / 1e3 - self.curMaxTransKwOut
 
             Total = [Total3, Total2, Total1, Total0]
             Total_roots = np.roots(Total)
@@ -1023,7 +1024,7 @@ class FASTSimEnvironment(gym.Env):
             self.essKwIfFcIsReq = min(self.curMaxEssKwOut, self.veh['mcMaxElecInKw'] + self.auxInKw, self.curMaxMcElecKwIn + self.auxInKw, max(-self.curMaxEssChgKw, min(self.essAccelRegenDischgKw, self.mcElecInLimKw + self.auxInKw, max(self.essRegenBufferDischgKw, self.essDesiredKw4FcEff))))
 
         elif self.essAccelBufferChgKw > 0:
-            self.essKwIfFcIsReq = min(self.curMaxEssKwOut, self.veh['mcMaxElecInKw'] + self.auxInKw,self.curMaxMcElecKwIn + self.auxInKw, max(-self.curMaxEssChgKw, max(-1 * self.maxEssRegenBufferChgKw, min(-self.essAccelBufferChgKw, self.essDesiredKw4FcEff))))
+            self.essKwIfFcIsReq = min(self.curMaxEssKwOut, self.veh['mcMaxElecInKw'] + self.auxInKw,self.curMaxMcElecKwIn + self.auxInKw, max(-self.curMaxEssChgKw, max(-1 * self.maxEssRegenBufferChgKw, min(-self.essAccelBufferChgKw, self.essDesiredKw4FcEff[self.steps]))))
 
 
         elif self.essDesiredKw4FcEff[self.steps] > 0:
@@ -1273,7 +1274,8 @@ class FASTSimEnvironment(gym.Env):
         Because only this variable could be passed into the driving cycle to be
         part of the decision making process and reward calculations.
         """
-        self.mcMechKw4ForcedFc = action * min(self.transKwInAch, self.curMaxMechMcKwIn)
+        # we have to divide action by 10 to convert the action within the range from 0 to 1 instead of 1 to 10
+        self.mcMechKw4ForcedFc = action/10 * min(self.transKwInAch, self.curMaxMechMcKwIn)
 
     def is_done(self):
         """ To evaluate whether or not the driving cycle has been completed
