@@ -19,9 +19,10 @@ def LinearDeepQNetwork(lr, n_actions, input_dims, fc1_dims, fc2_dims):
     return model
 
 class Agent(object):
-    def __init__(self, lr, gamma, n_actions, epsilon, batch_size, input_dims,
+    def __init__(self, lr, gamma, n_actions, legal_actions, epsilon, batch_size, input_dims,
                  eps_dec, eps_min, mem_size, fname='dqn_model'):
-        self.action_space = [i for i in range(n_actions)]
+        #self.action_space = [i for i in range(n_actions)]
+        self.legal_actions = legal_actions
         self.gamma = gamma
         self.epsilon = epsilon
         self.eps_dec = eps_dec
@@ -29,11 +30,11 @@ class Agent(object):
         self.batch_size = batch_size
         self.model_file = fname
 
-        self.memory = ReplayBuffer(mem_size, input_dims, n_actions, discrete=True)
+        self.memory = ReplayBuffer(mem_size, input_dims, n_actions)
 
         self.q_eval = LinearDeepQNetwork(lr, n_actions, input_dims, 256, 256)
 
-    def remember(self, state, action, reward, new_state, done):
+    def remember(self, state, action, reward, state_, done):
         self.memory.store_transition(state, action, reward, state_, done)
 
     def choose_action(self, state):
@@ -41,7 +42,8 @@ class Agent(object):
         state = state[np.newaxis, :]
         rand = np.random.random()
         if rand < self.epsilon:
-            action = np.random.choice(self.action_space)
+            action = np.random.choice(self.legal_actions)
+            #action = np.random.choice(self.action_space)
         else:
             actions = self.q_eval.predict(state)
             action = np.argmax(actions)
@@ -52,7 +54,7 @@ class Agent(object):
         if self.memory.mem_cntr > self.batch_size:
             state, action, reward, state_, done = self.memory.sample_buffer(self.batch_size)
 
-            action_values = np.array(self.action_space, dtype=np.int8)
+            action_values = np.array(self.legal_actions, dtype=np.int8)
             action_indices = np.dot(action, action_values)
 
             q_eval = self.q_eval.predict(state)
@@ -62,11 +64,12 @@ class Agent(object):
 
             batch_index = np.arange(self.batch_size, dtype=np.int32)
 
-            q_target[batch_index, action_indices] = reward + self.gamma * np.max(q_next, axis=1)*done
+            q_target[batch_index, action_indices] = reward + self.gamma * np.max(q_next, axis=1) * done
 
             _ = self.q_eval.fit(state, q_target, verbose=0)
 
             self.epsilon = self.epsilon * self.eps_dec if self.epsilon > self.eps_min else self.eps_min
+
 
     def save_model(self):
         self.q_eval.save(self.model_file)
