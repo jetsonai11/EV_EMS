@@ -1241,11 +1241,16 @@ class FASTSimEnvironment(gym.Env):
         reward = -self.w_m * tot_m / self.tot_m_norm + self.cost_bias - (1 - self.w_m) * (0.6 - self.soc) * (self.soc < 0.6) / self.soc_error_norm;
 
         done = self.is_done()
+        output = self.obtain_output()
 
         self.steps = self.steps + 1
 
         #print(self.state, reward, done)
-        print('fsKwhOutAch:', self.fsKwhOutAch, 'roadway:', self.roadwayChgKwOutAch * self.secs, 'distMiles:', self.distMiles)
+        #print('fsKwhOutAch:', self.fsKwhOutAch, 'roadway:', self.roadwayChgKwOutAch * self.secs, 'distMiles:', self.distMiles)
+        #print('fcKwOutAch:', fcKwOutAch, 'fcKwInAch:', fcKwInAch, 'essKwOutAch:', essKwOutAch,
+                #'cycSecs:', self.cycSecs, 'fcForcedState:', fcForcedState, 'transKwInAch:', transKwInAch,
+                #'mcMechKwOutAch:', mcMechKwOutAch, 'auxInKw:', auxInKw, 'mcElecKwInAch:', mcElecKwInAch,
+                #'mcMechKw4ForcedFc:', mcMechKw4ForcedFc, 'canPowerAllElectrically:', canPowerAllElectrically)
 
         return np.array(self.state), reward, done, {}
 
@@ -1289,15 +1294,20 @@ class FASTSimEnvironment(gym.Env):
 
     def obtain_output(self):
 
-        fsKwhOutAch_list, distMiles_list, roadwayChgKwOutAch_list, \
-        soc_list, cycMps_list, mpsAch_list = [], [], [], [], [], []
+        fsKwhOutAch_list, distMiles_list, roadwayChgKwOutAch_sec_list, soc_list, cycMps_list, \
+        mpsAch_list, mphAch_list, fsKwOutAch_list = [], [], [], [], [], [], [], []
 
         fsKwhOutAch_list.append(self.fsKwhOutAch)
+        fsKwOutAch_list.append(self.fsKwOutAch)
         distMiles_list.append(self.distMiles)
-        roadwayChgKwOutAch_sec_list.append(self.roadwayChgKwOutAch[self.steps] * self.secs[self.steps])
+        roadwayChgKwOutAch_sec_list.append(self.roadwayChgKwOutAch * self.secs)
         soc_list.append(self.soc)
-        cycMps_list.append(self.cycMps[self.steps])
         mpsAch_list.append(self.mpsAch)
+        mphAch_list.append(self.mphAch)
+
+        #print(mpsAch_list)
+        print(self.mpsAch)
+        #print(mphAch_list)
 
         output = dict()
 
@@ -1311,42 +1321,41 @@ class FASTSimEnvironment(gym.Env):
         essDischKj = -(soc_list[-1] - self.initSoc) * self.veh['maxEssKwh'] * 3600.0
         output['battery_kWh_per_mi'] = (essDischKj / 3600.0) / sum(distMiles_list)
         output['electric_kWh_per_mi'] = ((roadwayChgKj + essDischKj) / 3600.0) / sum(distMiles_list)
-        output['maxTraceMissMph'] = self.mphPerMps * max(abs(cycMps_list - mpsAch_list))
-        fuelKj = sum(np.asarray(fsKwOutAch) * np.asarray(secs))
-        roadwayChgKj = sum(np.asarray(roadwayChgKwOutAch)*np.asarray(secs))
-        essDischgKj = -(soc[-1]-initSoc)*veh['maxEssKwh']*3600.0
+        output['maxTraceMissMph'] = self.mphPerMps * max(abs(self.cycMps - mpsAch_list))
+        fuelKj = sum(np.asarray(fsKwOutAch_list) * np.asarray(self.secs))
+        roadwayChgKj = sum(np.asarray(self.roadwayChgKwOutAch) * np.asarray(self.secs))
+        essDischgKj = -(soc_list[-1] - self.initSoc) * self.veh['maxEssKwh'] * 3600.0
 
-        if (fuelKj+roadwayChgKj)==0:
+        if (fuelKj + roadwayChgKj) == 0:
             output['ess2fuelKwh'] = 1.0
 
         else:
-            output['ess2fuelKwh'] = essDischgKj/(fuelKj+roadwayChgKj)
+            output['ess2fuelKwh'] = essDischgKj / (fuelKj + roadwayChgKj)
 
-        fuelKg=np.asarray(fsKwhOutAch)/veh['fuelKwhPerKg']
-        fuelKgAch=np.zeros(len(fuelKg))
-        fuelKgAch[0]=fuelKg[0]
-        for qw1 in range(1,len(fuelKg)):
-            fuelKgAch[qw1]=fuelKgAch[qw1-1]+fuelKg[qw1]
-        output['initial_soc'] = soc[0]
-        output['final_soc'] = soc[-1]
-
+        fuelKg = np.asarray(fsKwhOutAch_list) / self.veh['fuelKwhPerKg']
+        fuelKgAch = np.zeros(len(fuelKg))
+        fuelKgAch[0] = fuelKg[0]
+        for qw1 in range(1, len(fuelKg)):
+            fuelKgAch[qw1] = fuelKgAch[qw1 - 1] + fuelKg[qw1]
+        output['initial_soc'] = soc_list[0]
+        output['final_soc'] = soc_list[-1]
 
         if output['mpgge'] == 0:
-            Gallons_gas_equivalent_per_mile = output['electric_kWh_per_mi']/33.7
+            Gallons_gas_equivalent_per_mile = output['electric_kWh_per_mi'] / 33.7
 
         else:
-             Gallons_gas_equivalent_per_mile = 1/output['mpgge'] + output['electric_kWh_per_mi']/33.7
+             Gallons_gas_equivalent_per_mile = 1 / output['mpgge'] + output['electric_kWh_per_mi'] / 33.7
 
-        output['mpgge_elec'] = 1/Gallons_gas_equivalent_per_mile
-        output['soc'] = np.asarray(soc)
-        output['distance_mi'] = sum(distMiles)
-        duration_sec = cycSecs[-1]-cycSecs[0]
-        output['avg_speed_mph'] = sum(distMiles) / (duration_sec/3600.0)
-        accel = np.diff(mphAch) / np.diff(cycSecs)
-        output['avg_accel_mphps'] = np.mean(accel[accel>0])
+        output['mpgge_elec'] = 1 / Gallons_gas_equivalent_per_mile
+        output['soc'] = np.asarray(soc_list)
+        output['distance_mi'] = sum(distMiles_list)
+        duration_sec = self.cycSecs[-1] - self.cycSecs[0]
+        output['avg_speed_mph'] = sum(distMiles_list) / (duration_sec / 3600.0)
+        accel = np.diff(mphAch_list) / np.diff(self.cycSecs)
+        output['avg_accel_mphps'] = np.mean(accel[accel > 0])
 
-        if max(mphAch)>60:
-            output['ZeroToSixtyTime_secs'] = np.interp(60,mphAch,cycSecs)
+        if max(mphAch_list) > 60:
+            output['ZeroToSixtyTime_secs'] = np.interp(60, mphAch_list, self.cycSecs)
 
         else:
             output['ZeroToSixtyTime_secs'] = 0.0
@@ -1356,11 +1365,26 @@ class FASTSimEnvironment(gym.Env):
         ####             Add parameters of interest as needed.             ####
         #######################################################################
 
+        fcKwOutAch_list, fcKwInAch_list, essKwOutAch_list, fcForcedState_list, transKwInAch_list,
+        mcMechKwOutAch_list, auxInKw_list, mcElecKwInAch_list, mcMechKw4ForcedFc_list, \
+        canPowerAllElectrically_list = [], [], [], [], [], [], [], [], [], []
+
+        fcKwOutAch_list.append(self.fcKwOutAch)
+        fcKwInAch_list.append(self.fcKwInAch)
+        essKwOutAch_list.append(self.essKwOutAch)
+        fcForcedState_list.append(self.fcForcedState)
+        transKwInAch_list.append(self.transKwInAch)
+        mcMechKwOutAch_list.append(self.mcMechKwOutAch)
+        auxInKw_list.append(self.auxInKw)
+        mcElecKwInAch_list.append(self.mcElecKwInAch)
+        mcMechKw4ForcedFc_list.append(self.mcMechKw4ForcedFc)
+        canPowerAllElectrically_list.append(self.canPowerAllElectrically)
+
         output['fcKwOutAch'] = np.asarray(fcKwOutAch)
-        output['fsKwhOutAch'] = np.asarray(fsKwhOutAch)
+        output['fsKwhOutAch'] = np.asarray(fsKwhOutAch_list)
         output['fcKwInAch'] = np.asarray(fcKwInAch)
         output['essKwOutAch'] = np.asarray(essKwOutAch)
-        output['time'] = np.asarray(cycSecs)
+        output['time'] = np.asarray(self.cycSecs)
         output['fcForcedState'] = np.asarray(fcForcedState)
         output['transKwInAch'] = np.asarray(transKwInAch)
         output['mcMechKwOutAch'] = np.asarray(mcMechKwOutAch)
