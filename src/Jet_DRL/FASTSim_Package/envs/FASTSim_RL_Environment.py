@@ -1245,6 +1245,7 @@ class FASTSimEnvironment(gym.Env):
         self.steps = self.steps + 1
 
         #print(self.state, reward, done)
+        print('fsKwhOutAch:', self.fsKwhOutAch, 'roadway:', self.roadwayChgKwOutAch * self.secs, 'distMiles:', self.distMiles)
 
         return np.array(self.state), reward, done, {}
 
@@ -1285,5 +1286,91 @@ class FASTSimEnvironment(gym.Env):
         if self.steps == 1370: # Double check if this is the length of duration of the driving cycle, but I believe that is the case
             return True
         return False
+
+    def obtain_output(self):
+
+        fsKwhOutAch_list, distMiles_list, roadwayChgKwOutAch_list, \
+        soc_list, cycMps_list, mpsAch_list = [], [], [], [], [], []
+
+        fsKwhOutAch_list.append(self.fsKwhOutAch)
+        distMiles_list.append(self.distMiles)
+        roadwayChgKwOutAch_sec_list.append(self.roadwayChgKwOutAch[self.steps] * self.secs[self.steps])
+        soc_list.append(self.soc)
+        cycMps_list.append(self.cycMps[self.steps])
+        mpsAch_list.append(self.mpsAch)
+
+        output = dict()
+
+        if sum(fsKwhOutAch_list) == 0:
+            output['mpgge'] = 0
+
+        else:
+            output['mpgge'] = sum(distMiles_list) / (sum(fsKwhOutAch_list) * (1 / self.kWhPerGGE))
+
+        roadwayChgKj = sum(roadwayChgKwOutAch_sec_list)
+        essDischKj = -(soc_list[-1] - self.initSoc) * self.veh['maxEssKwh'] * 3600.0
+        output['battery_kWh_per_mi'] = (essDischKj / 3600.0) / sum(distMiles_list)
+        output['electric_kWh_per_mi'] = ((roadwayChgKj + essDischKj) / 3600.0) / sum(distMiles_list)
+        output['maxTraceMissMph'] = self.mphPerMps * max(abs(cycMps_list - mpsAch_list))
+        fuelKj = sum(np.asarray(fsKwOutAch) * np.asarray(secs))
+        roadwayChgKj = sum(np.asarray(roadwayChgKwOutAch)*np.asarray(secs))
+        essDischgKj = -(soc[-1]-initSoc)*veh['maxEssKwh']*3600.0
+
+        if (fuelKj+roadwayChgKj)==0:
+            output['ess2fuelKwh'] = 1.0
+
+        else:
+            output['ess2fuelKwh'] = essDischgKj/(fuelKj+roadwayChgKj)
+
+        fuelKg=np.asarray(fsKwhOutAch)/veh['fuelKwhPerKg']
+        fuelKgAch=np.zeros(len(fuelKg))
+        fuelKgAch[0]=fuelKg[0]
+        for qw1 in range(1,len(fuelKg)):
+            fuelKgAch[qw1]=fuelKgAch[qw1-1]+fuelKg[qw1]
+        output['initial_soc'] = soc[0]
+        output['final_soc'] = soc[-1]
+
+
+        if output['mpgge'] == 0:
+            Gallons_gas_equivalent_per_mile = output['electric_kWh_per_mi']/33.7
+
+        else:
+             Gallons_gas_equivalent_per_mile = 1/output['mpgge'] + output['electric_kWh_per_mi']/33.7
+
+        output['mpgge_elec'] = 1/Gallons_gas_equivalent_per_mile
+        output['soc'] = np.asarray(soc)
+        output['distance_mi'] = sum(distMiles)
+        duration_sec = cycSecs[-1]-cycSecs[0]
+        output['avg_speed_mph'] = sum(distMiles) / (duration_sec/3600.0)
+        accel = np.diff(mphAch) / np.diff(cycSecs)
+        output['avg_accel_mphps'] = np.mean(accel[accel>0])
+
+        if max(mphAch)>60:
+            output['ZeroToSixtyTime_secs'] = np.interp(60,mphAch,cycSecs)
+
+        else:
+            output['ZeroToSixtyTime_secs'] = 0.0
+
+        #######################################################################
+        ####  Time series information for additional analysis / debugging. ####
+        ####             Add parameters of interest as needed.             ####
+        #######################################################################
+
+        output['fcKwOutAch'] = np.asarray(fcKwOutAch)
+        output['fsKwhOutAch'] = np.asarray(fsKwhOutAch)
+        output['fcKwInAch'] = np.asarray(fcKwInAch)
+        output['essKwOutAch'] = np.asarray(essKwOutAch)
+        output['time'] = np.asarray(cycSecs)
+        output['fcForcedState'] = np.asarray(fcForcedState)
+        output['transKwInAch'] = np.asarray(transKwInAch)
+        output['mcMechKwOutAch'] = np.asarray(mcMechKwOutAch)
+        output['auxInKw'] = np.asarray(auxInKw)
+        output['mcElecKwInAch'] = np.asarray(mcElecKwInAch)
+        output['mcMechKw4ForcedFc'] = np.asarray(mcMechKw4ForcedFc)
+        output['canPowerAllElectrically'] = np.asarray(canPowerAllElectrically)
+        output['fuelKg']=np.array(fuelKg)
+        output['fuelKgAch']=np.array(fuelKgAch)
+
+        return output
 
     #def render(self):

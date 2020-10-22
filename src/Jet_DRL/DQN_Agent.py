@@ -62,7 +62,7 @@ class Agent(object):
 
             batch_index = np.arange(self.batch_size, dtype=np.int32)
 
-            print("action_indices:", action_indices, "action_values:", action_values)
+            #print("action_indices:", action_indices, "action_values:", action_values)
             q_target[batch_index, action_indices] = reward + self.gamma * np.max(q_next, axis=1) * done
 
             _ = self.q_eval.fit(state, q_target, verbose=0)
