@@ -495,7 +495,7 @@ class FASTSimEnvironment(gym.Env):
         self.mcKwIfFcIsReq = 0
         self.fcForcedOn = np.full(1, False)
         self.fcForcedState = 0
-        self.mcMechKw4ForcedFc = 0
+        self.mcMechKw4ForcedFc = 0   # action - power split ratio
         self.fcTimeOn = 0
         self.prevfcTimeOn = 0
 
@@ -1229,7 +1229,7 @@ class FASTSimEnvironment(gym.Env):
         else:
             gam = (np.sign(self.mcMechKw4ForcedFc) + 1) * 0.5
         eff_EM = np.interp(np.abs(self.mcMechKw4ForcedFc), self.mcKwOutArray, self.veh['mcFullEffArray'])
-        m_equ_em_no_penalty =(self.s_EM * gam / eff_EM + self.s_EM * (1 - gam) * eff_EM) * (self.mcMechKw4ForcedFc * 1000) / self.Qhlv;
+        m_equ_em_no_penalty = (self.s_EM * gam / eff_EM + self.s_EM * (1 - gam) * eff_EM) * (self.mcMechKw4ForcedFc * 1000) / self.Qhlv;
         x_soc = (soc - self.soc_l) / (self.soc_h - self.soc_l);
         f_penalty = (1 - (x_soc ** 3) / 2) * self.weight_c; # penalty
         mc_m = f_penalty * m_equ_em_no_penalty
