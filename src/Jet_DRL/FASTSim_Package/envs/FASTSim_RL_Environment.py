@@ -416,107 +416,107 @@ class FASTSimEnvironment(gym.Env):
         self.steps = 1
 
         ### Component Limits
-        self.curMaxFsKwOut = 0.0
-        self.fcTransLimKw = 0.0
-        self.fcFsLimKw = 0.0
-        self.fcMaxKwIn = 0.0
-        self.curMaxFcKwOut = 0.0
-        self.essCapLimDischgKw = 0.0
-        self.curMaxEssKwOut = 0.0
-        self.curMaxAvailElecKw = 0.0
-        self.essCapLimChgKw = 0.0
-        self.curMaxEssChgKw = 0.0
+        self.curMaxFsKwOut = 0
+        self.fcTransLimKw = 0
+        self.fcFsLimKw = 0
+        self.fcMaxKwIn = 0
+        self.curMaxFcKwOut = 0
+        self.essCapLimDischgKw = 0
+        self.curMaxEssKwOut = 0
+        self.curMaxAvailElecKw = 0
+        self.essCapLimChgKw = 0
+        self.curMaxEssChgKw = 0
         self.curMaxRoadwayChgKw = np.interp(self.cycRoadType, self.veh['MaxRoadwayChgKw_Roadway'], self.veh['MaxRoadwayChgKw'])
-        self.curMaxElecKw = 0.0
-        self.mcElecInLimKw = 0.0
-        self.mcTransiLimKw = 0.0
-        self.curMaxMcKwOut = 0.0
-        self.essLimMcRegenPercKw = 0.0
-        self.essLimMcRegenKw = 0.0
-        self.curMaxMechMcKwIn = 0.0
-        self.curMaxTransKwOut = 0.0
+        self.curMaxElecKw = 0
+        self.mcElecInLimKw = 0
+        self.mcTransiLimKw = 0
+        self.curMaxMcKwOut = 0
+        self.essLimMcRegenPercKw = 0
+        self.essLimMcRegenKw = 0
+        self.curMaxMechMcKwIn = 0
+        self.curMaxTransKwOut = 0
 
         ### Drive Train
-        self.cycDragKw = 0.0
-        self.cycAccelKw = 0.0
-        self.cycAscentKw = 0.0
-        self.cycTracKwReq = 0.0
-        self.curMaxTracKw = 0.0
-        self.spareTracKw = 0.0
-        self.cycRrKw = 0.0
-        self.cycWheelRadPerSec = 0.0
-        self.cycTireInertiaKw = 0.0
-        self.cycWheelKwReq = 0.0
-        self.regenContrLimKwPerc = 0.0
-        self.cycRegenBrakeKw = 0.0
-        self.cycFricBrakeKw = 0.0
-        self.cycTransKwOutReq = 0.0
-        self.cycMet = 0.0
-        self.transKwOutAch = 0.0
-        self.transKwInAch = 0.0
-        self.curSocTarget = 0.0
-        self.minMcKw2HelpFc = 0.0
-        self.mcMechKwOutAch = 0.0
-        self.mcElecKwInAch = 0.0
-        self.auxInKw = 0.0
+        self.cycDragKw = 0
+        self.cycAccelKw = 0
+        self.cycAscentKw = 0
+        self.cycTracKwReq = 0
+        self.curMaxTracKw = 0
+        self.spareTracKw = 0
+        self.cycRrKw = 0
+        self.cycWheelRadPerSec = 0
+        self.cycTireInertiaKw = 0
+        self.cycWheelKwReq = 0
+        self.regenContrLimKwPerc = 0
+        self.cycRegenBrakeKw = 0
+        self.cycFricBrakeKw = 0
+        self.cycTransKwOutReq = 0
+        self.cycMet = 0
+        self.transKwOutAch = 0
+        self.transKwInAch = 0
+        self.curSocTarget = 0
+        self.minMcKw2HelpFc = 0
+        self.mcMechKwOutAch = 0
+        self.mcElecKwInAch = 0
+        self.auxInKw = 0
 
         #roadwayMaxEssChg = [0]*len(cycSecs)
-        self.roadwayChgKwOutAch = 0.0
-        self.minEssKw2HelpFc = 0.0
-        self.essKwOutAch = 0.0
-        self.fcKwOutAch = 0.0
-        self.fcKwOutAch_pct = 0.0
-        self.fcKwInAch = 0.0
-        self.fsKwOutAch = 0.0
-        self.fsKwhOutAch = 0.0
-        self.essCurKwh = 0.0
-        self.soc = 0.0
+        self.roadwayChgKwOutAch = 0
+        self.minEssKw2HelpFc = 0
+        self.essKwOutAch = 0
+        self.fcKwOutAch = 0
+        self.fcKwOutAch_pct = 0
+        self.fcKwInAch = 0
+        self.fsKwOutAch = 0
+        self.fsKwhOutAch = 0
+        self.essCurKwh = 0
+        self.soc = 0
 
         # Vehicle Attributes, Control Variables
-        self.regenBufferSoc = 0.0
-        self.essRegenBufferDischgKw = 0.0
-        self.maxEssRegenBufferChgKw = 0.0
-        self.essAccelBufferChgKw = 0.0
-        self.accelBufferSoc = 0.0
-        self.maxEssAccelBufferDischgKw = 0.0
-        self.essAccelRegenDischgKw = 0.0
-        self.mcElectInKwForMaxFcEff = 0.0
-        self.electKwReq4AE = 0.0
-        self.canPowerAllElectrically = 0.0
-        self.desiredEssKwOutForAE = 0.0
-        self.essAEKwOut = 0.0
-        self.erAEKwOut = 0.0
-        self.essDesiredKw4FcEff = 0.0
-        self.essKwIfFcIsReq = 0.0
-        self.curMaxMcElecKwIn = 0.0
-        self.fcKwGapFrEff = 0.0
-        self.erKwIfFcIsReq = 0.0
-        self.mcElecKwInIfFcIsReq = 0.0
-        self.mcKwIfFcIsReq = 0.0
-        self.fcForcedOn = np.full(1,False)
-        self.fcForcedState = 0.0
-        self.mcMechKw4ForcedFc = 0.0
-        self.fcTimeOn = 0.0
-        self.prevfcTimeOn = 0.0
+        self.regenBufferSoc = 0
+        self.essRegenBufferDischgKw = 0
+        self.maxEssRegenBufferChgKw = 0
+        self.essAccelBufferChgKw = 0
+        self.accelBufferSoc = 0
+        self.maxEssAccelBufferDischgKw = 0
+        self.essAccelRegenDischgKw = 0
+        self.mcElectInKwForMaxFcEff = 0
+        self.electKwReq4AE = 0
+        self.canPowerAllElectrically = 0
+        self.desiredEssKwOutForAE = 0
+        self.essAEKwOut = 0
+        self.erAEKwOut = 0
+        self.essDesiredKw4FcEff = 0
+        self.essKwIfFcIsReq = 0
+        self.curMaxMcElecKwIn = 0
+        self.fcKwGapFrEff = 0
+        self.erKwIfFcIsReq = 0
+        self.mcElecKwInIfFcIsReq = 0
+        self.mcKwIfFcIsReq = 0
+        self.fcForcedOn = np.full(1, False)
+        self.fcForcedState = 0
+        self.mcMechKw4ForcedFc = 0
+        self.fcTimeOn = 0
+        self.prevfcTimeOn = 0
 
         ### Additional Variables
-        self.mpsAch = 0.0
-        self.mphAch = 0.0
-        self.distMeters = 0.0
-        self.distMiles = 0.0
-        self.highAccFcOnTag = 0.0
-        self.reachedBuff = 0.0
-        self.maxTracMps = 0.0
-        self.addKwh = 0.0
-        self.dodCycs = 0.0
-        self.essPercDeadArray = 0.0
-        self.dragKw = 0.0
-        self.essLossKw = 0.0
-        self.accelKw = 0.0
-        self.ascentKw = 0.0
-        self.rrKw = 0.0
-        self.motor_index_debug = 0.0
-        self.debug_flag = 0.0
+        self.mpsAch = 0
+        self.mphAch = 0
+        self.distMeters = 0
+        self.distMiles = 0
+        self.highAccFcOnTag = 0
+        self.reachedBuff = 0
+        self.maxTracMps = 0
+        self.addKwh = 0
+        self.dodCycs = 0
+        self.essPercDeadArray = 0
+        self.dragKw = 0
+        self.essLossKw = 0
+        self.accelKw = 0
+        self.ascentKw = 0
+        self.rrKw = 0
+        self.motor_index_debug = 0
+        self.debug_flag = 0
 
         # define constants and variables for reward Calculations
         self.s_EM = 1
@@ -530,8 +530,8 @@ class FASTSimEnvironment(gym.Env):
 
         # define constants for fuel consumption Calculations
         self.cost_bias = 100
-        self.tot_m_norm=0.001
-        self.soc_error_norm=0.1
+        self.tot_m_norm = 0.001
+        self.soc_error_norm = 0.1
         self.w_m = 0.9
 
         ############################
@@ -543,6 +543,9 @@ class FASTSimEnvironment(gym.Env):
         self.curSocTarget = self.veh['maxSoc']
         self.essCurKwh = self.initSoc * self.veh['maxEssKwh']
         self.soc = self.initSoc
+
+        # define a sim # for printing results
+        self.n_sim = 1
 
         self.seed() # not sure if this is necessary
         self.state = None
@@ -673,7 +676,8 @@ class FASTSimEnvironment(gym.Env):
         essCurKwh = self.essCurKwh
         soc = self.soc
 
-        self.action(action)
+        #self.action(action)
+        self.mcMechKw4ForcedFc = action/10 * min(self.transKwInAch, self.curMaxMechMcKwIn)
         #print('action:', action)
 
         ### Misc calcs
@@ -1240,10 +1244,12 @@ class FASTSimEnvironment(gym.Env):
         tot_m = mc_m + fs_m
         reward = -self.w_m * tot_m / self.tot_m_norm + self.cost_bias - (1 - self.w_m) * (0.6 - self.soc) * (self.soc < 0.6) / self.soc_error_norm;
 
-        done = self.is_done()
-        output = self.obtain_output()
+        done = False
+        if self.steps == len(self.cycSecs) - 1: # in original file, for loop is only going up to 1369 seconds, driving cycle is done at 1370s
+            done = True
+        #done = self.is_done()
 
-        self.steps = self.steps + 1
+        self.steps += 1
 
         #print(self.state, reward, done)
         #print('fsKwhOutAch:', self.fsKwhOutAch, 'roadway:', self.roadwayChgKwOutAch * self.secs, 'distMiles:', self.distMiles)
@@ -1252,8 +1258,46 @@ class FASTSimEnvironment(gym.Env):
                 #'mcMechKwOutAch:', mcMechKwOutAch, 'auxInKw:', auxInKw, 'mcElecKwInAch:', mcElecKwInAch,
                 #'mcMechKw4ForcedFc:', mcMechKw4ForcedFc, 'canPowerAllElectrically:', canPowerAllElectrically)
 
-        return np.array(self.state), reward, done, {}
+        ############################################
+        ### Calculate Results and Assign Outputs ###
+        ############################################
 
+        ############## First initiate lists to append values ###############
+        #print(self.roadwayChgKwOutAch)
+        #print(self.secs)
+        print(len(self.soc_list))
+
+        self.fsKwOutAch_list.append(self.fsKwOutAch)
+        self.roadwayChgKwOutAch_list.append(self.roadwayChgKwOutAch)
+        self.distMiles_list.append(self.distMiles)
+        self.soc_list.append(self.soc)
+        self.mpsAch_list.append(self.mpsAch)
+        self.mphAch_list.append(self.mphAch)
+        ### time series information for analysys ###
+        self.fcKwOutAch_list.append(self.fcKwOutAch)
+        self.fsKwhOutAch_list.append(self.fsKwhOutAch)
+        self.fcKwInAch_list.append(self.fcKwInAch)
+        self.essKwOutAch_list.append(self.essKwOutAch)
+        self.fcForcedState_list.append(self.fcForcedState)
+        self.transKwInAch_list.append(self.transKwInAch)
+        self.mcMechKwOutAch_list.append(self.mcMechKwOutAch)
+        self.auxInKw_list.append(self.auxInKw)
+        self.mcElecKwInAch_list.append(self.mcElecKwInAch)
+        self.mcMechKw4ForcedFc_list.append(self.mcMechKw4ForcedFc)
+        self.canPowerAllElectrically_list.append(self.canPowerAllElectrically)
+
+        #print(mpsAch_list)
+        #print(self.steps)
+        #print(self.mpsAch_list)
+
+        ### Then output assigning and results Calculations
+
+        if done == True:
+            print('Driving simulation round {} completed. Assigning outputs and calculating results...'.format(self.n_sim))
+            self.obtain_output()
+            self.n_sim += 1
+
+        return np.array(self.state), reward, done, {}
 
     def reset(self):
         """Resets the environment to an initial state and returns an initial
@@ -1272,6 +1316,28 @@ class FASTSimEnvironment(gym.Env):
             self.state = (self.transKwInAch, self.mpsAch, self.soc)
 
         return np.array(self.state)
+
+    def reset_list(self):
+        ### initialize lists for calculating results and assigning output
+        self.output = dict()
+        self.fsKwhOutAch_list = [0]
+        self.roadwayChgKwOutAch_list = [0]
+        self.distMiles_list = [0]
+        self.soc_list = [0]
+        self.cycMps_list = [0]
+        self.mpsAch_list = [0]
+        self.mphAch_list = [0]
+        self.fsKwOutAch_list = [0]
+        self.fcKwOutAch_list = [0]
+        self.fcKwInAch_list = [0]
+        self.essKwOutAch_list = [0]
+        self.fcForcedState_list = [0]
+        self.transKwInAch_list = [0]
+        self.mcMechKwOutAch_list = [0]
+        self.auxInKw_list = [0]
+        self.mcElecKwInAch_list = [0]
+        self.mcMechKw4ForcedFc_list = [0]
+        self.canPowerAllElectrically_list = [0]
 
     def action(self, action):
         """Converts action taken by the agent to action variable 'mcMechKw4ForcedFc'
@@ -1294,107 +1360,73 @@ class FASTSimEnvironment(gym.Env):
 
     def obtain_output(self):
 
-        fsKwhOutAch_list, distMiles_list, roadwayChgKwOutAch_sec_list, soc_list, cycMps_list, \
-        mpsAch_list, mphAch_list, fsKwOutAch_list = [], [], [], [], [], [], [], []
-
-        fsKwhOutAch_list.append(self.fsKwhOutAch)
-        fsKwOutAch_list.append(self.fsKwOutAch)
-        distMiles_list.append(self.distMiles)
-        roadwayChgKwOutAch_sec_list.append(self.roadwayChgKwOutAch * self.secs)
-        soc_list.append(self.soc)
-        mpsAch_list.append(self.mpsAch)
-        mphAch_list.append(self.mphAch)
-
-        #print(mpsAch_list)
-        print(self.mpsAch)
-        #print(mphAch_list)
-
-        output = dict()
-
-        if sum(fsKwhOutAch_list) == 0:
-            output['mpgge'] = 0
+        if sum(self.fsKwhOutAch_list) == 0:
+            self.output['mpgge'] = 0
 
         else:
-            output['mpgge'] = sum(distMiles_list) / (sum(fsKwhOutAch_list) * (1 / self.kWhPerGGE))
+            self.output['mpgge'] = sum(self.distMiles_list) / (sum(self.fsKwhOutAch_list) * (1 / self.kWhPerGGE))
 
-        roadwayChgKj = sum(roadwayChgKwOutAch_sec_list)
-        essDischKj = -(soc_list[-1] - self.initSoc) * self.veh['maxEssKwh'] * 3600.0
-        output['battery_kWh_per_mi'] = (essDischKj / 3600.0) / sum(distMiles_list)
-        output['electric_kWh_per_mi'] = ((roadwayChgKj + essDischKj) / 3600.0) / sum(distMiles_list)
-        output['maxTraceMissMph'] = self.mphPerMps * max(abs(self.cycMps - mpsAch_list))
-        fuelKj = sum(np.asarray(fsKwOutAch_list) * np.asarray(self.secs))
-        roadwayChgKj = sum(np.asarray(self.roadwayChgKwOutAch) * np.asarray(self.secs))
-        essDischgKj = -(soc_list[-1] - self.initSoc) * self.veh['maxEssKwh'] * 3600.0
+        roadwayChgKj = sum(self.roadwayChgKwOutAch_list * self.secs)
+        essDischKj = -(self.soc_list[-1] - self.initSoc) * self.veh['maxEssKwh'] * 3600.0
+        self.output['battery_kWh_per_mi'] = (essDischKj / 3600.0) / sum(self.distMiles_list)
+        self.output['electric_kWh_per_mi'] = ((roadwayChgKj + essDischKj) / 3600.0) / sum(self.distMiles_list)
+        self.output['maxTraceMissMph'] = self.mphPerMps * max(abs(self.cycMps - self.mpsAch_list))
+        fuelKj = sum(np.asarray(self.fsKwOutAch_list) * np.asarray(self.secs))
+        roadwayChgKj = sum(np.asarray(self.roadwayChgKwOutAch_list) * np.asarray(self.secs))
+        essDischgKj = -(self.soc_list[-1] - self.initSoc) * self.veh['maxEssKwh'] * 3600.0
 
         if (fuelKj + roadwayChgKj) == 0:
-            output['ess2fuelKwh'] = 1.0
+            self.output['ess2fuelKwh'] = 1.0
 
         else:
-            output['ess2fuelKwh'] = essDischgKj / (fuelKj + roadwayChgKj)
+            self.output['ess2fuelKwh'] = essDischgKj / (fuelKj + roadwayChgKj)
 
-        fuelKg = np.asarray(fsKwhOutAch_list) / self.veh['fuelKwhPerKg']
+        fuelKg = np.asarray(self.fsKwhOutAch_list) / self.veh['fuelKwhPerKg']
         fuelKgAch = np.zeros(len(fuelKg))
         fuelKgAch[0] = fuelKg[0]
         for qw1 in range(1, len(fuelKg)):
             fuelKgAch[qw1] = fuelKgAch[qw1 - 1] + fuelKg[qw1]
-        output['initial_soc'] = soc_list[0]
-        output['final_soc'] = soc_list[-1]
+        self.output['initial_soc'] = self.soc_list[0]
+        self.output['final_soc'] = self.soc_list[-1]
 
-        if output['mpgge'] == 0:
-            Gallons_gas_equivalent_per_mile = output['electric_kWh_per_mi'] / 33.7
+        if self.output['mpgge'] == 0:
+            Gallons_gas_equivalent_per_mile = self.output['electric_kWh_per_mi'] / 33.7
 
         else:
-             Gallons_gas_equivalent_per_mile = 1 / output['mpgge'] + output['electric_kWh_per_mi'] / 33.7
+            Gallons_gas_equivalent_per_mile = 1 / self.output['mpgge'] + self.output['electric_kWh_per_mi'] / 33.7
 
-        output['mpgge_elec'] = 1 / Gallons_gas_equivalent_per_mile
-        output['soc'] = np.asarray(soc_list)
-        output['distance_mi'] = sum(distMiles_list)
+        self.output['mpgge_elec'] = 1 / Gallons_gas_equivalent_per_mile
+        self.output['soc'] = np.asarray(self.soc_list)
+        self.output['distance_mi'] = sum(self.distMiles_list)
         duration_sec = self.cycSecs[-1] - self.cycSecs[0]
-        output['avg_speed_mph'] = sum(distMiles_list) / (duration_sec / 3600.0)
-        accel = np.diff(mphAch_list) / np.diff(self.cycSecs)
-        output['avg_accel_mphps'] = np.mean(accel[accel > 0])
+        self.output['avg_speed_mph'] = sum(self.distMiles_list) / (duration_sec / 3600.0)
+        accel = np.diff(self.mphAch_list) / np.diff(self.cycSecs)
+        self.output['avg_accel_mphps'] = np.mean(accel[accel > 0])
 
-        if max(mphAch_list) > 60:
-            output['ZeroToSixtyTime_secs'] = np.interp(60, mphAch_list, self.cycSecs)
+        if max(self.mphAch_list) > 60:
+            self.output['ZeroToSixtyTime_secs'] = np.interp(60, self.mphAch_list, self.cycSecs)
 
         else:
-            output['ZeroToSixtyTime_secs'] = 0.0
+            self.output['ZeroToSixtyTime_secs'] = 0.0
 
         #######################################################################
         ####  Time series information for additional analysis / debugging. ####
         ####             Add parameters of interest as needed.             ####
         #######################################################################
 
-        fcKwOutAch_list, fcKwInAch_list, essKwOutAch_list, fcForcedState_list, transKwInAch_list,
-        mcMechKwOutAch_list, auxInKw_list, mcElecKwInAch_list, mcMechKw4ForcedFc_list, \
-        canPowerAllElectrically_list = [], [], [], [], [], [], [], [], [], []
+        self.output['fcKwOutAch'] = np.asarray(self.fcKwOutAch_list)
+        self.output['fsKwhOutAch'] = np.asarray(self.fsKwhOutAch_list)
+        self.output['fcKwInAch'] = np.asarray(self.fcKwInAch_list)
+        self.output['essKwOutAch'] = np.asarray(self.essKwOutAch_list)
+        self.output['time'] = np.asarray(self.cycSecs)
+        self.output['fcForcedState'] = np.asarray(self.fcForcedState_list)
+        self.output['transKwInAch'] = np.asarray(self.transKwInAch_list)
+        self.output['mcMechKwOutAch'] = np.asarray(self.mcMechKwOutAch_list)
+        self.output['auxInKw'] = np.asarray(self.auxInKw_list)
+        self.output['mcElecKwInAch'] = np.asarray(self.mcElecKwInAch_list)
+        self.output['mcMechKw4ForcedFc'] = np.asarray(self.mcMechKw4ForcedFc_list)
+        self.output['canPowerAllElectrically'] = np.asarray(self.canPowerAllElectrically_list)
+        self.output['fuelKg'] = np.array(fuelKg)
+        self.output['fuelKgAch'] = np.array(fuelKgAch)
 
-        fcKwOutAch_list.append(self.fcKwOutAch)
-        fcKwInAch_list.append(self.fcKwInAch)
-        essKwOutAch_list.append(self.essKwOutAch)
-        fcForcedState_list.append(self.fcForcedState)
-        transKwInAch_list.append(self.transKwInAch)
-        mcMechKwOutAch_list.append(self.mcMechKwOutAch)
-        auxInKw_list.append(self.auxInKw)
-        mcElecKwInAch_list.append(self.mcElecKwInAch)
-        mcMechKw4ForcedFc_list.append(self.mcMechKw4ForcedFc)
-        canPowerAllElectrically_list.append(self.canPowerAllElectrically)
-
-        output['fcKwOutAch'] = np.asarray(fcKwOutAch)
-        output['fsKwhOutAch'] = np.asarray(fsKwhOutAch_list)
-        output['fcKwInAch'] = np.asarray(fcKwInAch)
-        output['essKwOutAch'] = np.asarray(essKwOutAch)
-        output['time'] = np.asarray(self.cycSecs)
-        output['fcForcedState'] = np.asarray(fcForcedState)
-        output['transKwInAch'] = np.asarray(transKwInAch)
-        output['mcMechKwOutAch'] = np.asarray(mcMechKwOutAch)
-        output['auxInKw'] = np.asarray(auxInKw)
-        output['mcElecKwInAch'] = np.asarray(mcElecKwInAch)
-        output['mcMechKw4ForcedFc'] = np.asarray(mcMechKw4ForcedFc)
-        output['canPowerAllElectrically'] = np.asarray(canPowerAllElectrically)
-        output['fuelKg']=np.array(fuelKg)
-        output['fuelKgAch']=np.array(fuelKgAch)
-
-        return output
-
-    #def render(self):
+        return self.output

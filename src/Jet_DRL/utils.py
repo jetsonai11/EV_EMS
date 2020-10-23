@@ -1,4 +1,8 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import style
+
+style.use('ggplot')
 
 class ReplayBuffer(object):
     def __init__(self, mem_size, input_shape, n_actions):
@@ -43,9 +47,9 @@ class ReplayBuffer(object):
         return states, actions, rewards, states_, dones
 
 def plot_learning_curve(x, scores, epsilons, filename, lines=None):
-    fig=plt.figure()
-    ax=fig.add_subplot(111, label="1")
-    ax2=fig.add_subplot(111, label="2", frame_on=False)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, label="1")
+    ax2 = fig.add_subplot(111, label="2", frame_on=False)
 
     ax.plot(x, epsilons, color="C0")
     ax.set_xlabel("Training Steps", color="C0")
