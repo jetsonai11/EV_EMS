@@ -31,7 +31,7 @@ class Agent(object):
 
         self.memory = ReplayBuffer(mem_size, input_dims, n_actions)
 
-        self.q_eval = LinearDeepQNetwork(lr, n_actions, input_dims, 128, 128)
+        self.q_eval = LinearDeepQNetwork(lr, n_actions, input_dims, 256, 256)
 
     def remember(self, state, action, reward, state_, done):
         self.memory.store_transition(state, action, reward, state_, done)

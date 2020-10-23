@@ -978,9 +978,6 @@ class FASTSimEnvironment(gym.Env):
         else:
             self.fcForcedOn = False
 
-#####################################  ECMS stragegy was here  ##############################################
-
-
         if self.fcForcedOn == False or self.canPowerAllElectrically == False:
             self.fcForcedState = 1
 #             mcMechKw4ForcedFc[i] = (soc[i-1]-soc_ref)*soc_slop
@@ -1262,10 +1259,10 @@ class FASTSimEnvironment(gym.Env):
         ### Calculate Results and Assign Outputs ###
         ############################################
 
-        ############## First initiate lists to append values ###############
+        ##############  append values ###############
         #print(self.roadwayChgKwOutAch)
         #print(self.secs)
-        print(len(self.soc_list))
+        #print(len(self.soc_list))
 
         self.fsKwOutAch_list.append(self.fsKwOutAch)
         self.roadwayChgKwOutAch_list.append(self.roadwayChgKwOutAch)
@@ -1314,6 +1311,8 @@ class FASTSimEnvironment(gym.Env):
             self.state = (self.transKwInAch, self.mpsAch)
         if self.s_num == 3:
             self.state = (self.transKwInAch, self.mpsAch, self.soc)
+
+        self.steps = 1
 
         return np.array(self.state)
 
